@@ -50,6 +50,7 @@ export function runBrowserTests() {
     const r2 = g2.submitRound('p1', { p1: 5, p2: 4 });
     assert(r2.isAsaf, 'זיהוי אסף כאשר ליריב ניקוד נמוך יותר');
     assert(r2.asafPlayerId === 'p2', 'היריב מזוהה כמבצע האסף');
+    assert(r2.roundScores['p2'] === 4, 'מבצע האסף מקבל את ערך קלפיו');
 
     // 4. חוק החצאים (איפוס ל-0)
     const g3 = new YanivGame([{ id: 'p1', name: 'Alice' }, { id: 'p2', name: 'Bob' }], { halvingEnabled: true, halving50To: 0 });

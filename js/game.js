@@ -124,9 +124,8 @@ export class YanivGame {
             ? this.settings.asafPenalty
             : handVal + this.settings.asafPenalty;
           roundScores[pid] = penalty;
-        } else if (pid === asafPlayer.id) {
-          roundScores[pid] = 0;
         } else {
+          // מי שעשה אסף מקבל את הנקודות של הקלפים שלו שאיתם עשה את האסף
           roundScores[pid] = handVal;
         }
       } else {

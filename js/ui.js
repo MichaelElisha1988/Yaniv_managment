@@ -406,7 +406,7 @@ export class YanivUI {
           <span style="font-size: 1.4rem;">🚨</span>
           <div>
             <div><strong>התרעת אסף!</strong> ${this.escapeHtml(asafPlayer.name)} (${minOpponent}) עוקף/משווה את ${this.escapeHtml(caller.name)} (${callerCards})!</div>
-            <div style="font-size: 0.78rem; opacity: 0.9;">${this.escapeHtml(caller.name)} יספוג עונש אסף (+${penalty} נק'). ${this.escapeHtml(asafPlayer.name)} יקבל 0 נק'.</div>
+            <div style="font-size: 0.78rem; opacity: 0.9;">${this.escapeHtml(caller.name)} יספוג עונש אסף (+${penalty} נק'). ${this.escapeHtml(asafPlayer.name)} יקבל ${minOpponent} נק' (ערך קלפיו).</div>
           </div>
         </div>
       `;

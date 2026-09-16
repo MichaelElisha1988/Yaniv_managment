@@ -69,6 +69,8 @@ console.log('--- Running Yaniv Game Engine Tests (5 Players, Pause & Finish Earl
   assert(stats.asafCount === 1, 'Total asaf count is 1');
   assert(stats.playerStats['p2'].asafSuccess === 1, 'Bob made 1 asaf');
   assert(stats.playerStats['p1'].asafVictim === 1, 'Alice received 1 asaf');
+  assert(res.roundScores['p2'] === 3, 'Bob gets his card points (3) for making Asaf');
+  assert(game.players.find(p => p.id === 'p2').totalScore === 3, 'Bob total score is 3');
 }
 
 // Test 4: Reset from 50 to 0
