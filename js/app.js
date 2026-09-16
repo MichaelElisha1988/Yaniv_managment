@@ -189,11 +189,24 @@ class App {
 
     // 4. חוק החצאים
     const toggleHalving = document.getElementById('toggle-halving');
+    const halvingOptionsBox = document.getElementById('halving-options-box');
     if (toggleHalving) {
       toggleHalving.addEventListener('change', (e) => {
         this.setupSettings.halvingEnabled = e.target.checked;
+        if (halvingOptionsBox) {
+          halvingOptionsBox.style.display = e.target.checked ? 'block' : 'none';
+        }
       });
     }
+
+    // 4.1 יעד איפוס ל-50 (25 או 0)
+    document.querySelectorAll('[data-setting="halving50To"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-setting="halving50To"]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.setupSettings.halving50To = parseInt(btn.getAttribute('data-value'), 10);
+      });
+    });
 
     // 5. התחלת משחק חדש
     const btnStartGame = document.getElementById('btn-start-game');

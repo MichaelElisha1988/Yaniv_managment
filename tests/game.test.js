@@ -71,4 +71,21 @@ console.log('--- Running Yaniv Game Engine Tests (5 Players, Pause & Finish Earl
   assert(stats.playerStats['p1'].asafVictim === 1, 'Alice received 1 asaf');
 }
 
+// Test 4: Reset from 50 to 0
+{
+  const players = [
+    { id: 'p1', name: 'Alice' },
+    { id: 'p2', name: 'Bob' },
+  ];
+  const game = new YanivGame(players, { halvingEnabled: true, halving50To: 0 });
+  game.players[0].totalScore = 42;
+
+  // Alice gets 8 -> reaches exactly 50 -> resets to 0!
+  const res = game.submitRound('p2', { p1: 8, p2: 2 });
+  assert(res.halvingEvents.length === 1, 'Halving triggered');
+  assert(res.halvingEvents[0].to === 0, 'Target is 0');
+  assert(game.players.find(p => p.id === 'p1').totalScore === 0, 'Alice score successfully reset to 0');
+}
+
 console.log('🎉 ALL ENGINE TESTS PASSED!');
+
