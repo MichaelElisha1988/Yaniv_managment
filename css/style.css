@@ -1199,6 +1199,10 @@ input:checked + .slider:before {
    Custom Confirmation Dialog
    ========================================================================== */
 
+#modal-confirm {
+  z-index: 300 !important;
+}
+
 .confirm-modal-card {
   max-width: 380px !important;
   text-align: center;

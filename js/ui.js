@@ -281,7 +281,7 @@ export class YanivUI {
               <div class="score-input-container">
                 <label style="font-size:0.78rem; color:var(--text-muted);">ערך קלפים:</label>
                 <input type="number" min="0" max="100" class="score-number-input" 
-                       id="input-score-${p.id}" value="${currentVal}" />
+                       id="input-score-${p.id}" value="${currentVal}" placeholder="0" />
               </div>
             </div>
 
@@ -311,10 +311,47 @@ export class YanivUI {
       });
 
       scoreContainer.querySelectorAll('.score-number-input').forEach(input => {
+        input.addEventListener('focus', () => {
+          if (input.value === '0') {
+            input.value = '';
+          } else {
+            input.select();
+          }
+        });
+
+        input.addEventListener('blur', () => {
+          if (input.value.trim() === '') {
+            input.value = '0';
+            const pid = input.id.replace('input-score-', '');
+            this.roundCardInputs[pid] = 0;
+            this.updateLivePreview(game);
+          }
+        });
+
         input.addEventListener('input', (e) => {
           const pid = input.id.replace('input-score-', '');
-          const val = Math.max(0, parseInt(e.target.value || '0', 10));
+          let raw = e.target.value;
+          if (raw.length > 1 && raw.startsWith('0')) {
+            raw = raw.replace(/^0+/, '');
+            if (raw === '') raw = '0';
+            input.value = raw;
+          }
+          const val = Math.max(0, parseInt(raw || '0', 10));
           this.roundCardInputs[pid] = val;
+
+          // Sync quick-chip button highlight
+          const card = input.closest('.score-entry-card');
+          if (card) {
+            card.querySelectorAll('.chip-btn').forEach(btn => {
+              const bVal = parseInt(btn.getAttribute('data-val'), 10);
+              if (bVal === val) {
+                btn.classList.add('active');
+              } else {
+                btn.classList.remove('active');
+              }
+            });
+          }
+
           this.updateLivePreview(game);
         });
       });
