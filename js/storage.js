@@ -195,21 +195,53 @@ export const GameStorage = {
   },
 
   // =====================
+  // שמירת בחירות והעדפות משתמש
+  // =====================
+
+  savePreferences(prefs) {
+    try {
+      localStorage.setItem('yaniv_preferences_v1', JSON.stringify(prefs));
+    } catch (e) {
+      console.error('Failed to save preferences:', e);
+    }
+  },
+
+  loadPreferences() {
+    try {
+      const data = localStorage.getItem('yaniv_preferences_v1');
+      return data ? JSON.parse(data) : null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  // =====================
   // גיבוי ושחזור נתונים (העתקה / הדבקה)
   // =====================
 
   /**
-   * ייצוא כל נתוני האפליקציה כמחרוזת JSON
+   * ייצוא נתונים שנבחרו כמחרוזת JSON
    */
-  exportAllData() {
+  exportSelectedData({ includePlayers = true, includeActiveGame = true, includeHistory = true, onlySelectedPlayers = false, selectedPlayerIds = [] } = {}) {
     try {
+      let players = [];
+      if (includePlayers) {
+        const all = this.getSavedPlayers();
+        if (onlySelectedPlayers && selectedPlayerIds.length > 0) {
+          players = all.filter(p => selectedPlayerIds.includes(p.id));
+        } else {
+          players = all;
+        }
+      }
+
       const data = {
         version: 1,
         exportedAt: new Date().toISOString(),
-        players: this.getSavedPlayers(),
-        activeGame: this.loadActiveGame(),
-        completedGames: this.getArchivedGames(),
+        ...(includePlayers ? { players } : {}),
+        ...(includeActiveGame ? { activeGame: this.loadActiveGame() } : {}),
+        ...(includeHistory ? { completedGames: this.getArchivedGames() } : {}),
       };
+
       return JSON.stringify(data, null, 2);
     } catch (e) {
       console.error('Failed to export data:', e);
@@ -217,10 +249,14 @@ export const GameStorage = {
     }
   },
 
+  exportAllData() {
+    return this.exportSelectedData();
+  },
+
   /**
-   * ייבוא נתונים ממחרוזת JSON
+   * ייבוא נתונים שנבחרו ממחרוזת JSON
    */
-  importAllData(jsonString) {
+  importSelectedData(jsonString, { importPlayers = true, importActiveGame = true, importHistory = true } = {}) {
     try {
       if (!jsonString || typeof jsonString !== 'string') {
         return { success: false, error: 'נתונים ריקים או לא תקינים' };
@@ -232,18 +268,28 @@ export const GameStorage = {
         return { success: false, error: 'פורמט הנתונים אינו תקין' };
       }
 
-      // בדיקת שחקנים
-      if (Array.isArray(parsed.players)) {
-        this.saveAllPlayers(parsed.players);
+      // ייבוא שחקנים
+      if (importPlayers && Array.isArray(parsed.players)) {
+        // מיזוג שחקנים לפי ID או שם כך שלא ידרסו סטטיסטיקות קיימות שלא לצורך
+        const currentPlayers = this.getSavedPlayers();
+        parsed.players.forEach(newP => {
+          const idx = currentPlayers.findIndex(p => p.id === newP.id || p.name.trim().toLowerCase() === newP.name.trim().toLowerCase());
+          if (idx >= 0) {
+            currentPlayers[idx] = newP;
+          } else {
+            currentPlayers.push(newP);
+          }
+        });
+        this.saveAllPlayers(currentPlayers);
       }
 
-      // משחק פעיל
-      if (parsed.activeGame) {
+      // ייבוא משחק פעיל
+      if (importActiveGame && parsed.activeGame) {
         this.saveActiveGame(parsed.activeGame);
       }
 
-      // היסטוריית משחקים
-      if (Array.isArray(parsed.completedGames)) {
+      // ייבוא היסטוריית משחקים
+      if (importHistory && Array.isArray(parsed.completedGames)) {
         localStorage.setItem(HISTORY_KEY, JSON.stringify(parsed.completedGames));
       }
 
@@ -253,5 +299,10 @@ export const GameStorage = {
       return { success: false, error: 'שגיאה בפענוח ה-JSON: ' + e.message };
     }
   },
+
+  importAllData(jsonString) {
+    return this.importSelectedData(jsonString);
+  },
 };
+
 

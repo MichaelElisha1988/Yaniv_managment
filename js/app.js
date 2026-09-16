@@ -63,10 +63,57 @@ class App {
 
   loadRoster() {
     this.savedPlayers = GameStorage.getSavedPlayers();
-    // כברירת מחדל, נבחר עד 3-4 שחקנים ראשונים מהמאגר
+    const prefs = GameStorage.loadPreferences();
+
+    if (prefs) {
+      if (Array.isArray(prefs.selectedPlayerIds)) {
+        this.selectedPlayerIds = prefs.selectedPlayerIds.filter(id => this.savedPlayers.some(p => p.id === id));
+      }
+      if (prefs.settings) {
+        this.setupSettings = { ...this.setupSettings, ...prefs.settings };
+      }
+    }
+
+    // אם עדיין ריק, נבחר את השחקנים הראשונים כברירת מחדל
     if (this.selectedPlayerIds.length === 0) {
       this.selectedPlayerIds = this.savedPlayers.slice(0, Math.min(3, MAX_PLAYERS)).map(p => p.id);
     }
+
+    this.applySettingsToUI();
+  }
+
+  saveCurrentPreferences() {
+    GameStorage.savePreferences({
+      selectedPlayerIds: this.selectedPlayerIds,
+      settings: this.setupSettings,
+    });
+  }
+
+  applySettingsToUI() {
+    // יעד נקודות
+    document.querySelectorAll('[data-setting="targetScore"]').forEach(btn => {
+      btn.classList.toggle('active', parseInt(btn.getAttribute('data-value'), 10) === this.setupSettings.targetScore);
+    });
+
+    // חוק אסף
+    document.querySelectorAll('[data-setting="asafRule"]').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-value') === this.setupSettings.asafRule);
+    });
+
+    // חוק החצאים
+    const toggleHalving = document.getElementById('toggle-halving');
+    const halvingBox = document.getElementById('halving-options-box');
+    if (toggleHalving) {
+      toggleHalving.checked = !!this.setupSettings.halvingEnabled;
+      if (halvingBox) {
+        halvingBox.style.display = toggleHalving.checked ? 'block' : 'none';
+      }
+    }
+
+    // יעד איפוס 50
+    document.querySelectorAll('[data-setting="halving50To"]').forEach(btn => {
+      btn.classList.toggle('active', parseInt(btn.getAttribute('data-value'), 10) === this.setupSettings.halving50To);
+    });
   }
 
   showSetupView() {
@@ -92,6 +139,8 @@ class App {
       this.selectedPlayerIds.push(pid);
     }
 
+    this.saveCurrentPreferences();
+
     this.ui.renderRoster(
       this.savedPlayers,
       this.selectedPlayerIds,
@@ -116,6 +165,7 @@ class App {
     if (confirmed) {
       this.savedPlayers = GameStorage.deletePlayer(pid);
       this.selectedPlayerIds = this.selectedPlayerIds.filter(id => id !== pid);
+      this.saveCurrentPreferences();
       this.ui.renderRoster(
         this.savedPlayers,
         this.selectedPlayerIds,
@@ -155,6 +205,8 @@ class App {
           this.selectedPlayerIds.push(newPlayer.id);
         }
 
+        this.saveCurrentPreferences();
+
         inputPlayerName.value = '';
         inputPlayerName.blur();
 
@@ -175,6 +227,7 @@ class App {
         document.querySelectorAll('[data-setting="targetScore"]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.setupSettings.targetScore = parseInt(btn.getAttribute('data-value'), 10);
+        this.saveCurrentPreferences();
       });
     });
 
@@ -184,6 +237,7 @@ class App {
         document.querySelectorAll('[data-setting="asafRule"]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.setupSettings.asafRule = btn.getAttribute('data-value');
+        this.saveCurrentPreferences();
       });
     });
 
@@ -196,6 +250,7 @@ class App {
         if (halvingOptionsBox) {
           halvingOptionsBox.style.display = e.target.checked ? 'block' : 'none';
         }
+        this.saveCurrentPreferences();
       });
     }
 
@@ -205,6 +260,7 @@ class App {
         document.querySelectorAll('[data-setting="halving50To"]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.setupSettings.halving50To = parseInt(btn.getAttribute('data-value'), 10);
+        this.saveCurrentPreferences();
       });
     });
 
@@ -312,11 +368,29 @@ class App {
     const btnPasteImport = document.getElementById('btn-paste-from-clipboard');
     const btnApplyImport = document.getElementById('btn-apply-import-json');
 
+    const chkExpPlayers = document.getElementById('chk-exp-players');
+    const chkExpActive = document.getElementById('chk-exp-active');
+    const chkExpHistory = document.getElementById('chk-exp-history');
+    const chkExpOnlySelected = document.getElementById('chk-exp-only-selected');
+
+    const updateExportJSON = () => {
+      if (!textareaExport) return;
+      textareaExport.value = GameStorage.exportSelectedData({
+        includePlayers: chkExpPlayers ? chkExpPlayers.checked : true,
+        includeActiveGame: chkExpActive ? chkExpActive.checked : true,
+        includeHistory: chkExpHistory ? chkExpHistory.checked : true,
+        onlySelectedPlayers: chkExpOnlySelected ? chkExpOnlySelected.checked : false,
+        selectedPlayerIds: this.selectedPlayerIds,
+      });
+    };
+
+    [chkExpPlayers, chkExpActive, chkExpHistory, chkExpOnlySelected].forEach(chk => {
+      if (chk) chk.addEventListener('change', updateExportJSON);
+    });
+
     if (btnOpenDataModal && modalData) {
       btnOpenDataModal.addEventListener('click', () => {
-        if (textareaExport) {
-          textareaExport.value = GameStorage.exportAllData();
-        }
+        updateExportJSON();
         if (textareaImport) {
           textareaImport.value = '';
         }
@@ -339,7 +413,7 @@ class App {
             textareaExport.select();
             document.execCommand('copy');
           }
-          this.ui.showToast('כל הנתונים הועתקו ללוח! 📋', '✅');
+          this.ui.showToast('הנתונים שנבחרו הועתקו ללוח! 📋', '✅');
         } catch (e) {
           textareaExport.select();
           this.ui.showToast('סמן והעתק את הטקסט באופן ידני', 'ℹ️');
@@ -373,9 +447,22 @@ class App {
           return;
         }
 
+        const chkImpPlayers = document.getElementById('chk-imp-players');
+        const chkImpActive = document.getElementById('chk-imp-active');
+        const chkImpHistory = document.getElementById('chk-imp-history');
+
+        const importPlayers = chkImpPlayers ? chkImpPlayers.checked : true;
+        const importActive = chkImpActive ? chkImpActive.checked : true;
+        const importHistory = chkImpHistory ? chkImpHistory.checked : true;
+
+        if (!importPlayers && !importActive && !importHistory) {
+          this.ui.showToast('נא לסמן לפחות קטגוריה אחת לייבוא', '⚠️');
+          return;
+        }
+
         const confirmed = await this.ui.confirmDialog({
           title: 'שחזור וטעינת נתונים',
-          message: 'פעולה זו תטען את מאגר השחקנים, המשחק וההיסטוריה מתוך הנתונים שהודבקו. האם להמשיך?',
+          message: 'פעולה זו תעדכן את הנתונים שנבחרו באפליקציה. האם להמשיך?',
           icon: '📥',
           confirmText: 'כן, טען נתונים',
           cancelText: 'ביטול',
@@ -384,7 +471,12 @@ class App {
 
         if (!confirmed) return;
 
-        const result = GameStorage.importAllData(val);
+        const result = GameStorage.importSelectedData(val, {
+          importPlayers,
+          importActiveGame: importActive,
+          importHistory,
+        });
+
         if (!result.success) {
           this.ui.showToast(result.error || 'שגיאה בייבוא הנתונים', '❌');
           return;
@@ -401,7 +493,7 @@ class App {
 
         modalData.classList.remove('open');
         this.showSetupView();
-        this.ui.showToast('כל הנתונים שוחזרו ונטענו בהצלחה! 🚀', '🎉', 4000);
+        this.ui.showToast('הנתונים שנבחרו נטענו בהצלחה! 🚀', '🎉', 4000);
       });
     }
   }

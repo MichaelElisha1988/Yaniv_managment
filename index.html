@@ -333,13 +333,34 @@
               📤 העתקת נתונים (ייצוא):
             </label>
             <button type="button" id="btn-copy-export-json" class="btn-primary" style="padding: 6px 12px; font-size: 0.82rem;">
-              📋 העתק הכל ללוח
+              📋 העתק נתונים שנבחרו
             </button>
           </div>
-          <textarea id="textarea-export-json" class="input-styled" style="height: 110px; font-family: monospace; font-size: 0.78rem; direction: ltr; resize: vertical;" readonly></textarea>
+
+          <!-- Selection toggles for Export -->
+          <div style="display: flex; flex-wrap: wrap; gap: 10px; font-size: 0.82rem; color: var(--text-muted); background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: var(--radius-sm);">
+            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+              <input type="checkbox" id="chk-exp-players" checked />
+              <span>מאגר שחקנים וסטטיסטיקות</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+              <input type="checkbox" id="chk-exp-active" checked />
+              <span>משחק פעיל / מושהה</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+              <input type="checkbox" id="chk-exp-history" checked />
+              <span>היסטוריית משחקים</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--accent-gold);">
+              <input type="checkbox" id="chk-exp-only-selected" />
+              <span>רק שחקנים שנבחרו כעת</span>
+            </label>
+          </div>
+
+          <textarea id="textarea-export-json" class="input-styled" style="height: 100px; font-family: monospace; font-size: 0.78rem; direction: ltr; resize: vertical;" readonly></textarea>
         </div>
 
-        <hr style="border: 0; border-top: 1px solid var(--border-subtle); margin: 4px 0;" />
+        <hr style="border: 0; border-top: 1px solid var(--border-subtle); margin: 2px 0;" />
 
         <!-- Section 2: Paste / Import -->
         <div style="display: flex; flex-direction: column; gap: 8px;">
@@ -351,9 +372,26 @@
               📋 הדבק מהלוח
             </button>
           </div>
-          <textarea id="textarea-import-json" class="input-styled" style="height: 110px; font-family: monospace; font-size: 0.78rem; direction: ltr; resize: vertical;" placeholder="הדבק כאן את תוכן ה-JSON..."></textarea>
+
+          <!-- Selection toggles for Import -->
+          <div style="display: flex; flex-wrap: wrap; gap: 10px; font-size: 0.82rem; color: var(--text-muted); background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: var(--radius-sm);">
+            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+              <input type="checkbox" id="chk-imp-players" checked />
+              <span>טען שחקנים</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+              <input type="checkbox" id="chk-imp-active" checked />
+              <span>טען משחק פעיל</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+              <input type="checkbox" id="chk-imp-history" checked />
+              <span>טען היסטוריה</span>
+            </label>
+          </div>
+
+          <textarea id="textarea-import-json" class="input-styled" style="height: 95px; font-family: monospace; font-size: 0.78rem; direction: ltr; resize: vertical;" placeholder="הדבק כאן את תוכן ה-JSON..."></textarea>
           <button type="button" id="btn-apply-import-json" class="btn-primary btn-gold" style="width: 100%; padding: 12px; font-size: 1rem;">
-            טען נתונים לאפליקציה 🚀
+            טען נתונים שנבחרו לאפליקציה 🚀
           </button>
         </div>
       </div>
