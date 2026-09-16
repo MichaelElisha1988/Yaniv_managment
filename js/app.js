@@ -301,6 +301,109 @@ class App {
         this.handleStartNewGamePrompt();
       });
     }
+
+    // 11. העתקה / הדבקת נתונים (Backup / Restore)
+    const btnOpenDataModal = document.getElementById('btn-open-data-modal');
+    const modalData = document.getElementById('modal-data-sync');
+    const btnCloseData = document.getElementById('modal-btn-close-data');
+    const textareaExport = document.getElementById('textarea-export-json');
+    const textareaImport = document.getElementById('textarea-import-json');
+    const btnCopyExport = document.getElementById('btn-copy-export-json');
+    const btnPasteImport = document.getElementById('btn-paste-from-clipboard');
+    const btnApplyImport = document.getElementById('btn-apply-import-json');
+
+    if (btnOpenDataModal && modalData) {
+      btnOpenDataModal.addEventListener('click', () => {
+        if (textareaExport) {
+          textareaExport.value = GameStorage.exportAllData();
+        }
+        if (textareaImport) {
+          textareaImport.value = '';
+        }
+        modalData.classList.add('open');
+      });
+    }
+
+    if (btnCloseData && modalData) {
+      btnCloseData.addEventListener('click', () => {
+        modalData.classList.remove('open');
+      });
+    }
+
+    if (btnCopyExport && textareaExport) {
+      btnCopyExport.addEventListener('click', async () => {
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(textareaExport.value);
+          } else {
+            textareaExport.select();
+            document.execCommand('copy');
+          }
+          this.ui.showToast('כל הנתונים הועתקו ללוח! 📋', '✅');
+        } catch (e) {
+          textareaExport.select();
+          this.ui.showToast('סמן והעתק את הטקסט באופן ידני', 'ℹ️');
+        }
+      });
+    }
+
+    if (btnPasteImport && textareaImport) {
+      btnPasteImport.addEventListener('click', async () => {
+        try {
+          if (navigator.clipboard && navigator.clipboard.readText) {
+            const text = await navigator.clipboard.readText();
+            if (text) {
+              textareaImport.value = text;
+              this.ui.showToast('הנתונים הודבקו מהלוח', '📋');
+            }
+          } else {
+            this.ui.showToast('הדבק ישירות בתוך תיבת הטקסט', 'ℹ️');
+          }
+        } catch (e) {
+          this.ui.showToast('לא ניתן לקרוא אוטומטית מהלוח, הדבק ידנית', 'ℹ️');
+        }
+      });
+    }
+
+    if (btnApplyImport && textareaImport) {
+      btnApplyImport.addEventListener('click', async () => {
+        const val = textareaImport.value.trim();
+        if (!val) {
+          this.ui.showToast('נא להדביק נתוני JSON תקפים תחילה', '⚠️');
+          return;
+        }
+
+        const confirmed = await this.ui.confirmDialog({
+          title: 'שחזור וטעינת נתונים',
+          message: 'פעולה זו תטען את מאגר השחקנים, המשחק וההיסטוריה מתוך הנתונים שהודבקו. האם להמשיך?',
+          icon: '📥',
+          confirmText: 'כן, טען נתונים',
+          cancelText: 'ביטול',
+          isDanger: true,
+        });
+
+        if (!confirmed) return;
+
+        const result = GameStorage.importAllData(val);
+        if (!result.success) {
+          this.ui.showToast(result.error || 'שגיאה בייבוא הנתונים', '❌');
+          return;
+        }
+
+        // טעינה מחודשת של הנתונים והמשחק
+        this.loadRoster();
+        const activeGameData = GameStorage.loadActiveGame();
+        if (activeGameData && activeGameData.players && activeGameData.players.length >= 2) {
+          this.game = YanivGame.fromJSON(activeGameData);
+        } else {
+          this.game = null;
+        }
+
+        modalData.classList.remove('open');
+        this.showSetupView();
+        this.ui.showToast('כל הנתונים שוחזרו ונטענו בהצלחה! 🚀', '🎉', 4000);
+      });
+    }
   }
 
   startGame() {

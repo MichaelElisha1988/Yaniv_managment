@@ -193,4 +193,65 @@ export const GameStorage = {
       return [];
     }
   },
+
+  // =====================
+  // גיבוי ושחזור נתונים (העתקה / הדבקה)
+  // =====================
+
+  /**
+   * ייצוא כל נתוני האפליקציה כמחרוזת JSON
+   */
+  exportAllData() {
+    try {
+      const data = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        players: this.getSavedPlayers(),
+        activeGame: this.loadActiveGame(),
+        completedGames: this.getArchivedGames(),
+      };
+      return JSON.stringify(data, null, 2);
+    } catch (e) {
+      console.error('Failed to export data:', e);
+      return '';
+    }
+  },
+
+  /**
+   * ייבוא נתונים ממחרוזת JSON
+   */
+  importAllData(jsonString) {
+    try {
+      if (!jsonString || typeof jsonString !== 'string') {
+        return { success: false, error: 'נתונים ריקים או לא תקינים' };
+      }
+
+      const parsed = JSON.parse(jsonString);
+
+      if (!parsed || typeof parsed !== 'object') {
+        return { success: false, error: 'פורמט הנתונים אינו תקין' };
+      }
+
+      // בדיקת שחקנים
+      if (Array.isArray(parsed.players)) {
+        this.saveAllPlayers(parsed.players);
+      }
+
+      // משחק פעיל
+      if (parsed.activeGame) {
+        this.saveActiveGame(parsed.activeGame);
+      }
+
+      // היסטוריית משחקים
+      if (Array.isArray(parsed.completedGames)) {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(parsed.completedGames));
+      }
+
+      return { success: true };
+    } catch (e) {
+      console.error('Failed to import data:', e);
+      return { success: false, error: 'שגיאה בפענוח ה-JSON: ' + e.message };
+    }
+  },
 };
+
