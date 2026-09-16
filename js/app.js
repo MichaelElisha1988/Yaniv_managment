@@ -673,4 +673,20 @@ class App {
 
 document.addEventListener('DOMContentLoaded', () => {
   window.yanivApp = new App();
+
+  // הפעלת טסטים בדפדפן אך ורק כאשר האפליקציה רצה בסביבת localhost
+  const isLocalhost = window.location.hostname === 'localhost' ||
+                      window.location.hostname === '127.0.0.1' ||
+                      window.location.hostname === '[::1]';
+
+  if (isLocalhost) {
+    import('../tests/browser-runner.js')
+      .then(module => {
+        module.runBrowserTests();
+      })
+      .catch(err => {
+        console.warn('Browser test runner could not be loaded:', err);
+      });
+  }
 });
+
