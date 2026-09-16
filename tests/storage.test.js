@@ -52,7 +52,12 @@ assert(restoredYossi !== undefined, 'Restored player יוסי exists');
 assert(restoredYossi.stats.gamesWon === 2, 'Restored statistics match (gamesWon: 2)');
 assert(restoredYossi.stats.asafMade === 3, 'Restored statistics match (asafMade: 3)');
 
-// 6. Test invalid JSON import
+// 6. Test resetsCount delta tracking
+GameStorage.recordPlayerDeltas('p_test_1', { resetsCount: 2 });
+const updatedYossi = GameStorage.getSavedPlayers().find(p => p.name === 'יוסי');
+assert(updatedYossi.stats.resetsCount === 2, 'resetsCount incremented to 2');
+
+// 7. Test invalid JSON import
 const badResult = GameStorage.importAllData('bad json string');
 assert(badResult.success === false, 'Properly rejects bad JSON');
 

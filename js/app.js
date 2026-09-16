@@ -580,9 +580,10 @@ class App {
         this.ui.showToast(`📣 יניב מוצלח ל-${result.callerName}! (0 נק')`, '🎉', 3000);
       }
 
-      // חגיגת חצאים
+      // חגיגת חצאים ועדכון מדד איפוסים לשחקן
       if (result.halvingEvents.length > 0) {
         result.halvingEvents.forEach(h => {
+          GameStorage.recordPlayerDeltas(h.playerId, { resetsCount: 1 });
           setTimeout(() => {
             this.ui.showToast(`✂️ חצי! הניקוד של ${h.playerName} נחתך מ-${h.from} ל-${h.to}!`, '✨', 4000);
             fireConfetti(1500);

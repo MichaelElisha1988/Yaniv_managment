@@ -450,6 +450,11 @@ body::before {
   color: #fda4af;
 }
 
+.stat-pill.resets {
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  color: #67e8f9;
+}
+
 .stat-pill strong {
   font-family: var(--font-num);
   font-size: 0.85rem;

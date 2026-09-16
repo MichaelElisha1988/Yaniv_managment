@@ -112,6 +112,9 @@ export class YanivUI {
             <span class="stat-pill asaf-got" title="אספים שחטף כשהכריז">
               <span>💥</span> <span>קיבל אסף:</span> <strong>${stats.asafReceived || 0}</strong>
             </span>
+            <span class="stat-pill resets" title="סך איפוסים וחצאים שהשיג">
+              <span>✂️</span> <span>איפוסים:</span> <strong>${stats.resetsCount || 0}</strong>
+            </span>
           </div>
         </div>
       `;

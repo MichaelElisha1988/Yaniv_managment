@@ -32,21 +32,21 @@ export const GameStorage = {
         name: 'שחקן 1',
         avatar: '🦁',
         color: '#10b981',
-        stats: { gamesPlayed: 0, gamesWon: 0, roundsWon: 0, asafMade: 0, asafReceived: 0 }
+        stats: { gamesPlayed: 0, gamesWon: 0, roundsWon: 0, asafMade: 0, asafReceived: 0, resetsCount: 0 }
       },
       {
         id: 'p_default_2',
         name: 'שחקן 2',
         avatar: '🦊',
         color: '#3b82f6',
-        stats: { gamesPlayed: 0, gamesWon: 0, roundsWon: 0, asafMade: 0, asafReceived: 0 }
+        stats: { gamesPlayed: 0, gamesWon: 0, roundsWon: 0, asafMade: 0, asafReceived: 0, resetsCount: 0 }
       },
       {
         id: 'p_default_3',
         name: 'שחקן 3',
         avatar: '🦉',
         color: '#f59e0b',
-        stats: { gamesPlayed: 0, gamesWon: 0, roundsWon: 0, asafMade: 0, asafReceived: 0 }
+        stats: { gamesPlayed: 0, gamesWon: 0, roundsWon: 0, asafMade: 0, asafReceived: 0, resetsCount: 0 }
       }
     ];
     this.saveAllPlayers(defaultPlayers);
@@ -75,7 +75,16 @@ export const GameStorage = {
       players[existingIndex] = {
         ...players[existingIndex],
         ...playerData,
-        stats: { ...players[existingIndex].stats, ...(playerData.stats || {}) }
+        stats: {
+          gamesPlayed: 0,
+          gamesWon: 0,
+          roundsWon: 0,
+          asafMade: 0,
+          asafReceived: 0,
+          resetsCount: 0,
+          ...players[existingIndex].stats,
+          ...(playerData.stats || {})
+        }
       };
     } else {
       players.push({
@@ -89,6 +98,7 @@ export const GameStorage = {
           roundsWon: 0,
           asafMade: 0,
           asafReceived: 0,
+          resetsCount: 0,
           ...(playerData.stats || {})
         }
       });
@@ -108,15 +118,15 @@ export const GameStorage = {
   },
 
   /**
-   * עדכון סטטיסטיקות שחקן (כמה ניצח, כמה אספים עשה, כמה קיבל)
+   * עדכון סטטיסטיקות שחקן (כמה ניצח, כמה אספים עשה, כמה קיבל, וכמה איפוסים/חצאים השיג)
    */
-  recordPlayerDeltas(playerId, { gamesPlayed = 0, gamesWon = 0, roundsWon = 0, asafMade = 0, asafReceived = 0 }) {
+  recordPlayerDeltas(playerId, { gamesPlayed = 0, gamesWon = 0, roundsWon = 0, asafMade = 0, asafReceived = 0, resetsCount = 0 }) {
     const players = this.getSavedPlayers();
     const p = players.find(x => x.id === playerId);
     if (!p) return;
 
     if (!p.stats) {
-      p.stats = { gamesPlayed: 0, gamesWon: 0, roundsWon: 0, asafMade: 0, asafReceived: 0 };
+      p.stats = { gamesPlayed: 0, gamesWon: 0, roundsWon: 0, asafMade: 0, asafReceived: 0, resetsCount: 0 };
     }
 
     p.stats.gamesPlayed = Math.max(0, (p.stats.gamesPlayed || 0) + gamesPlayed);
@@ -124,6 +134,7 @@ export const GameStorage = {
     p.stats.roundsWon = Math.max(0, (p.stats.roundsWon || 0) + roundsWon);
     p.stats.asafMade = Math.max(0, (p.stats.asafMade || 0) + asafMade);
     p.stats.asafReceived = Math.max(0, (p.stats.asafReceived || 0) + asafReceived);
+    p.stats.resetsCount = Math.max(0, (p.stats.resetsCount || 0) + resetsCount);
 
     this.saveAllPlayers(players);
   },
