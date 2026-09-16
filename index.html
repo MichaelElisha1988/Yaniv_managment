@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>יניב - לוח תוצאות וניהול משחק קלפים</title>
+  <meta name="description" content="אפליקציה מתקדמת לניהול ורישום תוצאות משחק קלפים יניב עם חישוב אסף, חצאים, סטטיסטיקות ומעקב שחקנים." />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <canvas id="confetti-canvas"></canvas>
+  <div id="toast-container"></div>
+
+  <div id="app">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-icon">🃏</div>
+        <div class="brand-text">
+          <h1>יניב מנג'ר</h1>
+          <span>ניהול ולוח תוצאות משחק קלפים</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button type="button" class="btn-icon" id="btn-new-game-header" title="משחק חדש">➕</button>
+      </div>
+    </header>
+
+    <!-- VIEW 1: Game Setup & Players -->
+    <main id="view-setup" class="view active">
+      <div class="setup-card">
+        <div class="section-title">
+          <span>👥</span>
+          <h2>שחקנים במשחק</h2>
+        </div>
+
+        <form id="form-add-player" class="player-input-row">
+          <input type="text" id="input-player-name" class="input-styled" placeholder="שם השחקן (למשל: דני, מיכל...)" maxlength="16" autocomplete="off" required />
+          <button type="submit" class="btn-primary">הוסף</button>
+        </form>
+
+        <div id="setup-players-list" class="players-list-setup">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <div class="setup-card">
+        <div class="section-title">
+          <span>⚙️</span>
+          <h2>הגדרות וחוקי משחק</h2>
+        </div>
+
+        <div class="settings-grid">
+          <!-- Target Score -->
+          <div class="setting-box">
+            <label class="setting-label">סף נקודות לפסילה:</label>
+            <div class="pill-selector">
+              <button type="button" class="pill-btn active" data-setting="targetScore" data-value="100">100</button>
+              <button type="button" class="pill-btn" data-setting="targetScore" data-value="150">150</button>
+              <button type="button" class="pill-btn" data-setting="targetScore" data-value="200">200</button>
+            </div>
+          </div>
+
+          <!-- Asaf Penalty -->
+          <div class="setting-box">
+            <label class="setting-label">עונש אסף (למכריז):</label>
+            <div class="pill-selector">
+              <button type="button" class="pill-btn active" data-setting="asafRule" data-value="cardsPlus30">קלפים + 30</button>
+              <button type="button" class="pill-btn" data-setting="asafRule" data-value="fixed30">30 בלבד</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Halving Rule Switch -->
+        <div class="toggle-row" style="margin-top: 16px; border-top: 1px solid var(--border-subtle); padding-top: 14px;">
+          <div>
+            <div style="font-weight: 700; color: var(--text-main);">חוק החצאים (50 / 100) ✂️</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">הגעה ל-50 מורידה ל-25; הגעה ל-100 מורידה ל-50</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-halving" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div style="margin-top: 24px;">
+          <button type="button" id="btn-start-game" class="btn-primary btn-gold" style="width: 100%; font-size: 1.15rem; padding: 14px;">
+            התחל משחק 🚀
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <!-- VIEW 2: Active Game Screen -->
+    <main id="view-active-game" class="view">
+      <!-- Status bar -->
+      <div class="game-status-bar">
+        <div class="round-indicator">
+          <span class="round-badge" id="active-round-num">סבב 1</span>
+        </div>
+        <div class="dealer-tag" id="active-dealer-container">
+          <span class="dealer-token">🪙</span>
+          <span>מחלק:</span>
+          <strong id="active-dealer-name">שחקן</strong>
+        </div>
+        <div>
+          <button type="button" id="btn-undo-round" class="btn-secondary" style="display:none; padding: 6px 12px; font-size: 0.82rem;" title="בטל סבב אחרון">
+            ↩️ בטל סבב
+          </button>
+        </div>
+      </div>
+
+      <!-- Player Cards Leaderboard -->
+      <div id="scoreboard-grid" class="scoreboard-grid">
+        <!-- Rendered by JS -->
+      </div>
+
+      <!-- Action Bar -->
+      <div class="game-action-bar">
+        <button type="button" id="btn-record-round" class="btn-primary btn-record-round">
+          <span>➕</span>
+          <span>הזן תוצאות סבב</span>
+        </button>
+        <button type="button" id="btn-view-history" class="btn-secondary btn-round-history">
+          <span>📋</span>
+          <span>לוח ניקוד</span>
+        </button>
+      </div>
+    </main>
+
+    <!-- VIEW 3: Game Over Screen -->
+    <main id="view-game-over" class="view">
+      <div class="victory-card">
+        <div class="crown-icon">👑</div>
+        <h2 class="victory-title">יש לנו מנצח!</h2>
+        
+        <div class="winner-highlight">
+          <span id="winner-avatar" class="winner-avatar">🦁</span>
+          <span id="winner-name" class="winner-name">דני</span>
+        </div>
+
+        <!-- Summary Stats -->
+        <div id="victory-stats-grid" class="stats-summary-grid">
+          <!-- Rendered by JS -->
+        </div>
+
+        <!-- Final Rankings Podium -->
+        <div style="text-align: right; margin-bottom: 20px;">
+          <h3 style="color: var(--accent-gold); font-size: 1.1rem; margin-bottom: 10px;">דירוג סופי:</h3>
+          <div id="victory-podium-list"></div>
+        </div>
+
+        <div style="display: flex; gap: 10px; justify-content: center;">
+          <button type="button" id="btn-rematch" class="btn-primary btn-gold" style="flex: 1; padding: 14px;">
+            משחק חוזר 🔁
+          </button>
+          <button type="button" id="btn-new-game-over" class="btn-secondary" style="flex: 1; padding: 14px;">
+            הגדרת משחק חדש ⚙️
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <!-- MODAL 1: Record Round -->
+    <div id="modal-record-round" class="modal-backdrop">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3><span>📣</span> הזנת תוצאות סבב</h3>
+          <button type="button" id="modal-btn-close-record" class="btn-icon" style="width: 32px; height: 32px;">✕</button>
+        </div>
+
+        <div>
+          <label style="font-weight: 700; color: var(--accent-gold); font-size: 0.95rem;">מי הכריז יניב?</label>
+          <div id="modal-caller-selector" class="caller-selection-grid">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <div>
+          <label style="font-weight: 700; color: var(--text-main); font-size: 0.95rem; margin-top: 8px; display: block;">
+            ערך הקלפים ביד לכל שחקן:
+          </label>
+          <div id="modal-players-scores" class="score-entry-list">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Live Asaf / Halving Alert Preview -->
+        <div id="modal-round-preview-box"></div>
+
+        <div style="margin-top: 10px;">
+          <button type="button" id="modal-btn-confirm-round" class="btn-primary btn-gold" style="width: 100%; font-size: 1.1rem; padding: 14px;">
+            שמור סבב וחשב תוצאות ✨
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 2: Full History Table -->
+    <div id="modal-history" class="modal-backdrop">
+      <div class="modal-card" style="max-width: 650px;">
+        <div class="modal-header">
+          <h3><span>📋</span> לוח ניקוד והיסטוריית סבבים</h3>
+          <button type="button" id="modal-btn-close-history" class="btn-icon" style="width: 32px; height: 32px;">✕</button>
+        </div>
+
+        <div class="history-table-container">
+          <table class="history-table">
+            <thead id="history-table-head">
+              <!-- Rendered by JS -->
+            </thead>
+            <tbody id="history-table-body">
+              <!-- Rendered by JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <div style="text-align: center; margin-top: 10px;">
+          <button type="button" onclick="document.getElementById('modal-history').classList.remove('open')" class="btn-secondary" style="width: 100%;">
+            סגור
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
