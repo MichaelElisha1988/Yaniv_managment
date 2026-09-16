@@ -151,10 +151,10 @@ export class YanivGame {
           halvedFrom = 50;
           halvedTo = this.settings.halving50To;
           newTotal = halvedTo;
-        } else if (newTotal === 100 && this.settings.targetScore > 100) {
+        } else if (newTotal === 100) {
           halved = true;
           halvedFrom = 100;
-          halvedTo = this.settings.halving100To;
+          halvedTo = this.settings.halving100To !== undefined ? this.settings.halving100To : 50;
           newTotal = halvedTo;
         }
       }

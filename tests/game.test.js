@@ -87,5 +87,23 @@ console.log('--- Running Yaniv Game Engine Tests (5 Players, Pause & Finish Earl
   assert(game.players.find(p => p.id === 'p1').totalScore === 0, 'Alice score successfully reset to 0');
 }
 
+// Test 5: Reaching exactly 100 drops to 50 even when targetScore is 100
+{
+  const players = [
+    { id: 'p1', name: 'Alice' },
+    { id: 'p2', name: 'Bob' },
+  ];
+  const game = new YanivGame(players, { targetScore: 100, halvingEnabled: true });
+  game.players[0].totalScore = 80;
+
+  // Alice gets 20 -> reaches exactly 100 -> drops to 50!
+  const res = game.submitRound('p2', { p1: 20, p2: 1 });
+  assert(res.halvingEvents.length === 1, 'Halving triggered on 100 points');
+  assert(res.halvingEvents[0].from === 100 && res.halvingEvents[0].to === 50, 'Dropped from 100 to 50');
+  assert(game.players.find(p => p.id === 'p1').totalScore === 50, 'Alice score is 50');
+  assert(game.players.find(p => p.id === 'p1').isEliminated === false, 'Alice is NOT eliminated');
+}
+
 console.log('🎉 ALL ENGINE TESTS PASSED!');
+
 

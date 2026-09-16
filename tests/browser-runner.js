@@ -57,6 +57,12 @@ export function runBrowserTests() {
     const r3 = g3.submitRound('p2', { p1: 10, p2: 2 });
     assert(r3.halvingEvents.length === 1 && g3.players[0].totalScore === 0, 'איפוס מ-50 ל-0 מופעל בהצלחה');
 
+    // 4.1 חוק החצאים (הגעה ל-100 מורידה ל-50 ביעד 100)
+    const g4 = new YanivGame([{ id: 'p1', name: 'Alice' }, { id: 'p2', name: 'Bob' }], { targetScore: 100, halvingEnabled: true });
+    g4.players[0].totalScore = 80;
+    const r4 = g4.submitRound('p2', { p1: 20, p2: 2 });
+    assert(r4.halvingEvents.length === 1 && g4.players[0].totalScore === 50 && !g4.players[0].isEliminated, 'הגעה מדויקת ל-100 מורידה ל-50 ולא פוסלת');
+
     // 5. סיום מוקדם
     const winner = g.finishEarly();
     assert(g.isGameOver && winner.id === 'p1', 'סיום משחק מוקדם מזהה מוביל');
