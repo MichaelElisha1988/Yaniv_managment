@@ -1,8 +1,9 @@
 /**
  * נקודת כניסה ראשית לאפליקציה (Yaniv Manager App)
+ * כולל ניהול מאגר שחקנים קבוע, מעקב סטטיסטיקות, עצירת משחק באמצע, ומגבלת 5 שחקנים.
  */
 
-import { YanivGame, DEFAULT_SETTINGS } from './game.js';
+import { YanivGame, DEFAULT_SETTINGS, MAX_PLAYERS, MIN_PLAYERS } from './game.js';
 import { YanivUI } from './ui.js';
 import { GameStorage } from './storage.js';
 import { fireConfetti } from './confetti.js';
@@ -14,35 +15,42 @@ class App {
   constructor() {
     this.ui = new YanivUI();
     this.game = null;
-    this.setupPlayers = [
-      { name: 'שחקן 1', avatar: '🦁', color: '#10b981' },
-      { name: 'שחקן 2', avatar: '🦊', color: '#3b82f6' },
-      { name: 'שחקן 3', avatar: '🦉', color: '#f59e0b' },
-    ];
+    this.savedPlayers = [];
+    this.selectedPlayerIds = [];
     this.setupSettings = { ...DEFAULT_SETTINGS };
 
     this.init();
   }
 
   init() {
+    this.loadRoster();
     this.bindEvents();
 
-    // בדיקה האם יש משחק פעיל שמור
+    // בדיקה האם יש משחק פעיל / מושהה שמור
     const savedData = GameStorage.loadActiveGame();
-    if (savedData && savedData.players && savedData.players.length >= 2) {
+    if (savedData && savedData.players && savedData.players.length >= MIN_PLAYERS) {
       try {
         this.game = YanivGame.fromJSON(savedData);
+
         if (this.game.isGameOver) {
           this.ui.renderGameOver(
             this.game,
             () => this.handleRematch(),
             () => this.handleStartNewGamePrompt()
           );
-        } else {
-          this.ui.switchView('view-active-game');
-          this.ui.renderActiveGame(this.game);
-          this.ui.showToast('משחק קודם שוחזר בהצלחה', '🔄');
+          return;
         }
+
+        // אם המשחק מושהה, נציג את מסך ההגדרות עם באנר המשך
+        if (this.game.isPaused) {
+          this.showSetupView();
+          return;
+        }
+
+        // אחרת, חזרה ישירה למשחק הפעיל
+        this.ui.switchView('view-active-game');
+        this.ui.renderActiveGame(this.game);
+        this.ui.showToast('משחק שוחזר בהצלחה', '🔄');
         return;
       } catch (e) {
         console.error('Error resuming saved game:', e);
@@ -50,13 +58,76 @@ class App {
       }
     }
 
-    // ברירת מחדל: מסך הגדרות
+    this.showSetupView();
+  }
+
+  loadRoster() {
+    this.savedPlayers = GameStorage.getSavedPlayers();
+    // כברירת מחדל, נבחר עד 3-4 שחקנים ראשונים מהמאגר
+    if (this.selectedPlayerIds.length === 0) {
+      this.selectedPlayerIds = this.savedPlayers.slice(0, Math.min(3, MAX_PLAYERS)).map(p => p.id);
+    }
+  }
+
+  showSetupView() {
     this.ui.switchView('view-setup');
-    this.ui.renderSetupPlayers(this.setupPlayers, (idx) => this.removePlayer(idx));
+    this.ui.renderResumeBanner(this.game, () => this.resumeActiveGame());
+    this.ui.renderRoster(
+      this.savedPlayers,
+      this.selectedPlayerIds,
+      (pid) => this.togglePlayerSelection(pid),
+      (pid) => this.deletePlayerFromRoster(pid)
+    );
+  }
+
+  togglePlayerSelection(pid) {
+    const idx = this.selectedPlayerIds.indexOf(pid);
+    if (idx >= 0) {
+      this.selectedPlayerIds.splice(idx, 1);
+    } else {
+      if (this.selectedPlayerIds.length >= MAX_PLAYERS) {
+        this.ui.showToast(`במשחק יניב יכולים להשתתף לכל היותר ${MAX_PLAYERS} שחקנים`, '⚠️');
+        return;
+      }
+      this.selectedPlayerIds.push(pid);
+    }
+
+    this.ui.renderRoster(
+      this.savedPlayers,
+      this.selectedPlayerIds,
+      (id) => this.togglePlayerSelection(id),
+      (id) => this.deletePlayerFromRoster(id)
+    );
+  }
+
+  async deletePlayerFromRoster(pid) {
+    const player = this.savedPlayers.find(p => p.id === pid);
+    const name = player ? player.name : 'השחקן';
+
+    const confirmed = await this.ui.confirmDialog({
+      title: 'מחיקת שחקן',
+      message: `האם למחוק את "${name}" ממאגר השחקנים? הנתונים והסטטיסטיקות שנצברו יימחקו.`,
+      icon: '🗑️',
+      confirmText: 'מחק שחקן',
+      cancelText: 'ביטול',
+      isDanger: true,
+    });
+
+    if (confirmed) {
+      this.savedPlayers = GameStorage.deletePlayer(pid);
+      this.selectedPlayerIds = this.selectedPlayerIds.filter(id => id !== pid);
+      this.ui.renderRoster(
+        this.savedPlayers,
+        this.selectedPlayerIds,
+        (id) => this.togglePlayerSelection(id),
+        (id) => this.deletePlayerFromRoster(id)
+      );
+      this.ui.showToast(`השחקן "${name}" הוסר מהמאגר`, '🗑️');
+    }
   }
 
   bindEvents() {
-    // 1. הוספת שחקן במסך ההגדרות
+    // 1. הוספת שחקן חדש למאגר הקבוע
     const formAddPlayer = document.getElementById('form-add-player');
     const inputPlayerName = document.getElementById('input-player-name');
 
@@ -66,23 +137,39 @@ class App {
         const name = inputPlayerName.value.trim();
         if (!name) return;
 
-        if (this.setupPlayers.length >= 8) {
-          this.ui.showToast('ניתן להוסיף עד 8 שחקנים', '⚠️');
-          return;
+        const avatar = AVATARS[this.savedPlayers.length % AVATARS.length];
+        const color = COLORS[this.savedPlayers.length % COLORS.length];
+
+        const newPlayer = {
+          id: `p_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+          name,
+          avatar,
+          color,
+          stats: { gamesPlayed: 0, gamesWon: 0, roundsWon: 0, asafMade: 0, asafReceived: 0 },
+        };
+
+        this.savedPlayers = GameStorage.upsertPlayer(newPlayer);
+
+        // אם יש מקום, נוסיף אותו מיד לנבחרים
+        if (this.selectedPlayerIds.length < MAX_PLAYERS) {
+          this.selectedPlayerIds.push(newPlayer.id);
         }
 
-        const avatar = AVATARS[this.setupPlayers.length % AVATARS.length];
-        const color = COLORS[this.setupPlayers.length % COLORS.length];
-
-        this.setupPlayers.push({ name, avatar, color });
         inputPlayerName.value = '';
-        inputPlayerName.focus();
+        inputPlayerName.blur();
 
-        this.ui.renderSetupPlayers(this.setupPlayers, (idx) => this.removePlayer(idx));
+        this.ui.renderRoster(
+          this.savedPlayers,
+          this.selectedPlayerIds,
+          (id) => this.togglePlayerSelection(id),
+          (id) => this.deletePlayerFromRoster(id)
+        );
+
+        this.ui.showToast(`השחקן "${name}" נשמר במאגר בהצלחה`, '✅');
       });
     }
 
-    // 2. בחירת יעד נקודות לפסילה (100, 150, 200)
+    // 2. הגדרת יעד נקודות (100 / 150 / 200)
     document.querySelectorAll('[data-setting="targetScore"]').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('[data-setting="targetScore"]').forEach(b => b.classList.remove('active'));
@@ -91,7 +178,7 @@ class App {
       });
     });
 
-    // 3. חוק אסף (cardsPlus30 או fixed30)
+    // 3. חוק אסף
     document.querySelectorAll('[data-setting="asafRule"]').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('[data-setting="asafRule"]').forEach(b => b.classList.remove('active'));
@@ -100,7 +187,7 @@ class App {
       });
     });
 
-    // 4. חוק החצאים (Toggle)
+    // 4. חוק החצאים
     const toggleHalving = document.getElementById('toggle-halving');
     if (toggleHalving) {
       toggleHalving.addEventListener('change', (e) => {
@@ -108,13 +195,13 @@ class App {
       });
     }
 
-    // 5. כפתור התחלת משחק
+    // 5. התחלת משחק חדש
     const btnStartGame = document.getElementById('btn-start-game');
     if (btnStartGame) {
       btnStartGame.addEventListener('click', () => this.startGame());
     }
 
-    // 6. כפתור הזנת סבב חדש
+    // 6. הזנת סבב
     const btnRecordRound = document.getElementById('btn-record-round');
     if (btnRecordRound) {
       btnRecordRound.addEventListener('click', () => {
@@ -125,7 +212,6 @@ class App {
       });
     }
 
-    // 7. כפתור סגירת מודאל הזנת סבב
     const btnCloseModalRecord = document.getElementById('modal-btn-close-record');
     if (btnCloseModalRecord) {
       btnCloseModalRecord.addEventListener('click', () => {
@@ -133,7 +219,7 @@ class App {
       });
     }
 
-    // 8. כפתור היסטוריית סבבים
+    // 7. לוח ניקוד והיסטוריה
     const btnViewHistory = document.getElementById('btn-view-history');
     if (btnViewHistory) {
       btnViewHistory.addEventListener('click', () => {
@@ -148,12 +234,21 @@ class App {
       });
     }
 
-    // 9. כפתור ביטול סבב אחרון (Undo)
+    // 8. ביטול סבב (Undo)
     const btnUndoRound = document.getElementById('btn-undo-round');
     if (btnUndoRound) {
-      btnUndoRound.addEventListener('click', () => {
+      btnUndoRound.addEventListener('click', async () => {
         if (!this.game) return;
-        if (confirm('האם לבטל את תוצאות הסבב האחרון?')) {
+        const confirmed = await this.ui.confirmDialog({
+          title: 'ביטול סבב אחרון',
+          message: 'האם לבטל את תוצאות הסבב האחרון ולהחזיר את לוח הניקוד לקדמותו?',
+          icon: '↩️',
+          confirmText: 'כן, בטל סבב',
+          cancelText: 'השאר כך',
+          isDanger: false,
+        });
+
+        if (confirmed) {
           const success = this.game.undoLastRound();
           if (success) {
             GameStorage.saveActiveGame(this.game.toJSON());
@@ -161,6 +256,28 @@ class App {
             this.ui.showToast('הסבב האחרון בוטל בהצלחה', '↩️');
           }
         }
+      });
+    }
+
+    // 9. כפתור עצירת משחק (Pause)
+    const btnPauseGame = document.getElementById('btn-pause-game');
+    if (btnPauseGame) {
+      btnPauseGame.addEventListener('click', () => {
+        if (!this.game) return;
+        this.ui.openPauseModal(this.game, {
+          onResume: () => {
+            this.ui.showToast('ממשיכים במשחק', '▶️');
+          },
+          onPauseAndExit: () => {
+            this.pauseAndExitToMenu();
+          },
+          onFinishEarly: () => {
+            this.finishGameEarly();
+          },
+          onAbort: () => {
+            this.abortGame();
+          }
+        });
       });
     }
 
@@ -173,27 +290,66 @@ class App {
     }
   }
 
-  removePlayer(idx) {
-    if (this.setupPlayers.length <= 2) {
-      this.ui.showToast('חובה לפחות 2 שחקנים במשחק', '⚠️');
-      return;
-    }
-    this.setupPlayers.splice(idx, 1);
-    this.ui.renderSetupPlayers(this.setupPlayers, (i) => this.removePlayer(i));
-  }
-
   startGame() {
-    if (this.setupPlayers.length < 2) {
-      this.ui.showToast('נא להוסיף לפחות 2 שחקנים כדי להתחיל', '⚠️');
+    if (this.selectedPlayerIds.length < MIN_PLAYERS) {
+      this.ui.showToast(`נא לבחור לפחות ${MIN_PLAYERS} שחקנים`, '⚠️');
+      return;
+    }
+    if (this.selectedPlayerIds.length > MAX_PLAYERS) {
+      this.ui.showToast(`ניתן לבחור עד ${MAX_PLAYERS} שחקנים בלבד`, '⚠️');
       return;
     }
 
-    this.game = new YanivGame(this.setupPlayers, this.setupSettings);
+    const playersToPlay = this.savedPlayers.filter(p => this.selectedPlayerIds.includes(p.id));
+
+    this.game = new YanivGame(playersToPlay, this.setupSettings);
     GameStorage.saveActiveGame(this.game.toJSON());
 
     this.ui.switchView('view-active-game');
     this.ui.renderActiveGame(this.game);
-    this.ui.showToast(`המשחק התחיל! יעד פסילה: ${this.setupSettings.targetScore} נק'`, '🚀');
+    this.ui.showToast(`המשחק התחיל! ${playersToPlay.length} שחקנים`, '🚀');
+  }
+
+  resumeActiveGame() {
+    if (!this.game) return;
+    this.game.isPaused = false;
+    GameStorage.saveActiveGame(this.game.toJSON());
+    this.ui.switchView('view-active-game');
+    this.ui.renderActiveGame(this.game);
+    this.ui.showToast('חזרת למשחק הפעיל!', '▶️');
+  }
+
+  pauseAndExitToMenu() {
+    if (!this.game) return;
+    this.game.isPaused = true;
+    GameStorage.saveActiveGame(this.game.toJSON());
+    this.showSetupView();
+    this.ui.showToast('המשחק הושהה ונשמר! ניתן להמשיך בכל עת', '💾');
+  }
+
+  finishGameEarly() {
+    if (!this.game) return;
+    const winner = this.game.finishEarly();
+    this.handleGameFinished();
+    this.ui.showToast(`המשחק הסתיים מוקדם! ${winner.name} מנצח!`, '🏁');
+  }
+
+  async abortGame() {
+    const confirmed = await this.ui.confirmDialog({
+      title: 'ביטול משחק',
+      message: 'האם לבטל ולמחוק את המשחק הנוכחי? נתוני הסבבים ששוחקו במשחק זה לא יישמרו.',
+      icon: '🗑️',
+      confirmText: 'כן, בטל משחק',
+      cancelText: 'המשך לשחק',
+      isDanger: true,
+    });
+
+    if (confirmed) {
+      GameStorage.clearActiveGame();
+      this.game = null;
+      this.showSetupView();
+      this.ui.showToast('המשחק בוטל', '🗑️');
+    }
   }
 
   submitRound(callerId, cardValues) {
@@ -201,10 +357,18 @@ class App {
       const result = this.game.submitRound(callerId, cardValues);
       GameStorage.saveActiveGame(this.game.toJSON());
 
-      // בדיקת אירועים מיוחדים להתרעות וחגיגות
+      // עדכון סטטיסטיקות שחקנים ב-localStorage
       if (result.isAsaf) {
+        // המכריז קיבל אסף
+        GameStorage.recordPlayerDeltas(result.callerId, { asafReceived: 1 });
+        // התופס עשה אסף
+        if (result.asafPlayerId) {
+          GameStorage.recordPlayerDeltas(result.asafPlayerId, { asafMade: 1 });
+        }
         this.ui.showToast(`🚨 אסף! ${result.asafPlayerName} תפס את ${result.callerName}!`, '💥', 4000);
       } else {
+        // יניב מוצלח למכריז
+        GameStorage.recordPlayerDeltas(result.callerId, { roundsWon: 1 });
         this.ui.showToast(`📣 יניב מוצלח ל-${result.callerName}! (0 נק')`, '🎉', 3000);
       }
 
@@ -212,13 +376,13 @@ class App {
       if (result.halvingEvents.length > 0) {
         result.halvingEvents.forEach(h => {
           setTimeout(() => {
-            this.ui.showToast(`✂️ חצי! הניקוד של ${h.playerName} נחתך מ-${h.from} ל-${h.to}!`, '✨', 4500);
+            this.ui.showToast(`✂️ חצי! הניקוד של ${h.playerName} נחתך מ-${h.from} ל-${h.to}!`, '✨', 4000);
             fireConfetti(1500);
           }, 600);
         });
       }
 
-      // בדיקת פסילות חדשות
+      // שחקנים שנפסלו
       if (result.newlyEliminated.length > 0) {
         result.newlyEliminated.forEach(el => {
           setTimeout(() => {
@@ -227,23 +391,9 @@ class App {
         });
       }
 
-      // האם המשחק נגמר
+      // בדיקת סיום משחק
       if (this.game.isGameOver) {
-        GameStorage.archiveCompletedGame({
-          winner: this.game.winner?.name,
-          rounds: this.game.history.length,
-          targetScore: this.game.settings.targetScore,
-          players: this.game.players.map(p => ({ name: p.name, score: p.totalScore })),
-        });
-        GameStorage.clearActiveGame();
-
-        setTimeout(() => {
-          this.ui.renderGameOver(
-            this.game,
-            () => this.handleRematch(),
-            () => this.handleStartNewGamePrompt()
-          );
-        }, 1200);
+        this.handleGameFinished();
       } else {
         this.ui.renderActiveGame(this.game);
       }
@@ -253,13 +403,44 @@ class App {
     }
   }
 
+  handleGameFinished() {
+    const winner = this.game.winner;
+
+    // עדכון ניצחון ומשחקים ששוחקו לכל המשתתפים
+    if (winner) {
+      GameStorage.recordPlayerDeltas(winner.id, { gamesWon: 1 });
+    }
+    this.game.players.forEach(p => {
+      GameStorage.recordPlayerDeltas(p.id, { gamesPlayed: 1 });
+    });
+
+    // רענון נתוני השחקנים השמורים
+    this.loadRoster();
+
+    // ארכיון
+    GameStorage.archiveCompletedGame({
+      winner: winner?.name,
+      rounds: this.game.history.length,
+      targetScore: this.game.settings.targetScore,
+      players: this.game.players.map(p => ({ name: p.name, score: p.totalScore })),
+    });
+    GameStorage.clearActiveGame();
+
+    setTimeout(() => {
+      this.ui.renderGameOver(
+        this.game,
+        () => this.handleRematch(),
+        () => this.handleStartNewGamePrompt()
+      );
+    }, 1000);
+  }
+
   handleRematch() {
     if (!this.game) return;
-    const currentPlayers = this.game.players.map(p => ({
-      name: p.name,
-      avatar: p.avatar,
-      color: p.color,
-    }));
+    const currentPlayers = this.game.players.map(p => {
+      const saved = this.savedPlayers.find(sp => sp.id === p.id);
+      return saved || { name: p.name, avatar: p.avatar, color: p.color, id: p.id };
+    });
 
     this.game = new YanivGame(currentPlayers, this.game.settings);
     GameStorage.saveActiveGame(this.game.toJSON());
@@ -271,19 +452,17 @@ class App {
 
   handleStartNewGamePrompt() {
     if (this.game && !this.game.isGameOver) {
-      if (!confirm('האם לסיים את המשחק הנוכחי ולהתחיל משחק חדש?')) {
-        return;
-      }
+      this.pauseAndExitToMenu();
+      return;
     }
 
     GameStorage.clearActiveGame();
     this.game = null;
-    this.ui.switchView('view-setup');
-    this.ui.renderSetupPlayers(this.setupPlayers, (idx) => this.removePlayer(idx));
+    this.loadRoster();
+    this.showSetupView();
   }
 }
 
-// הפעלת האפליקציה בטעינת ה-DOM
 document.addEventListener('DOMContentLoaded', () => {
   window.yanivApp = new App();
 });

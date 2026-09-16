@@ -1,5 +1,6 @@
 /**
  * מנוע חוקי המשחק עבור יניב (Yaniv Game Engine)
+ * תומך ב-2 עד 5 שחקנים, עצירת משחק מוקדמת, מעקב היסטוריה ושחזור.
  */
 
 export const DEFAULT_SETTINGS = {
@@ -12,34 +13,45 @@ export const DEFAULT_SETTINGS = {
   yanivThreshold: 7,       // סף מקסימלי לקריאת יניב (בד"כ 7)
 };
 
+export const MAX_PLAYERS = 5;
+export const MIN_PLAYERS = 2;
+
 export class YanivGame {
   constructor(players = [], settings = {}) {
+    if (players.length > MAX_PLAYERS) {
+      throw new Error(`במשחק יניב יכולים להשתתף לכל היותר ${MAX_PLAYERS} שחקנים`);
+    }
+    if (players.length < MIN_PLAYERS) {
+      throw new Error(`במשחק יניב נדרשים לפחות ${MIN_PLAYERS} שחקנים`);
+    }
+
     this.settings = { ...DEFAULT_SETTINGS, ...settings };
     this.players = players.map((p, idx) => ({
       id: p.id || `player_${Date.now()}_${idx}`,
       name: p.name.trim(),
       avatar: p.avatar || '🃏',
       color: p.color || '#10b981',
-      totalScore: 0,
-      scoresHistory: [],
-      isEliminated: false,
-      eliminatedInRound: null,
+      totalScore: p.totalScore || 0,
+      scoresHistory: p.scoresHistory || [],
+      isEliminated: !!p.isEliminated,
+      eliminatedInRound: p.eliminatedInRound || null,
     }));
     this.dealerIndex = 0;
     this.currentRound = 1;
-    this.history = []; // רשימת סבבים קודמים לשחזור/Undo
+    this.history = [];
     this.isGameOver = false;
     this.winner = null;
+    this.isPaused = false;
   }
 
   static fromJSON(data) {
-    const game = new YanivGame([], data.settings);
-    game.players = data.players || [];
+    const game = new YanivGame(data.players || [], data.settings);
     game.dealerIndex = data.dealerIndex || 0;
     game.currentRound = data.currentRound || 1;
     game.history = data.history || [];
     game.isGameOver = !!data.isGameOver;
     game.winner = data.winner || null;
+    game.isPaused = !!data.isPaused;
     return game;
   }
 
@@ -52,6 +64,7 @@ export class YanivGame {
       history: this.history,
       isGameOver: this.isGameOver,
       winner: this.winner,
+      isPaused: this.isPaused,
     };
   }
 
@@ -67,9 +80,6 @@ export class YanivGame {
 
   /**
    * עיבוד והזנת תוצאות סבב
-   * @param {string} callerId מזהה השחקן שהכריז יניב
-   * @param {Object.<string, number>} cardValues ערכי הקלפים של כל שחקן פעיל { [playerId]: number }
-   * @returns {Object} פירוט תוצאות הסבב (האם היה אסף, מי ניצח, חצאים שקרו וכו')
    */
   submitRound(callerId, cardValues) {
     if (this.isGameOver) {
@@ -110,29 +120,23 @@ export class YanivGame {
 
       if (isAsaf) {
         if (pid === callerId) {
-          // המכריז חטף אסף
           const penalty = this.settings.asafRule === 'fixed30'
             ? this.settings.asafPenalty
             : handVal + this.settings.asafPenalty;
           roundScores[pid] = penalty;
         } else if (pid === asafPlayer.id) {
-          // השחקן שעשה אסף מקבל 0
           roundScores[pid] = 0;
         } else {
-          // שאר השחקנים מקבלים את ערך הקלפים שלהם
           roundScores[pid] = handVal;
         }
       } else {
         if (pid === callerId) {
-          // המכריז ניצח יניב חוקי ומקבל 0
           roundScores[pid] = 0;
         } else {
-          // שאר השחקנים מקבלים את ערך הקלפים שלהם
           roundScores[pid] = handVal;
         }
       }
 
-      // שמירת ניקוד מקורי לפני חצאים
       const scoreBeforeRound = player.totalScore;
       let newTotal = scoreBeforeRound + roundScores[pid];
 
@@ -195,7 +199,7 @@ export class YanivGame {
 
     this.history.push(roundResult);
 
-    // 6. קידום מחלק וסבב
+    // 6. קידום מחלק וסבב או סיום משחק
     const remainingPlayers = this.getActivePlayers();
     if (remainingPlayers.length <= 1) {
       this.isGameOver = true;
@@ -209,6 +213,22 @@ export class YanivGame {
   }
 
   /**
+   * סיום משחק מוקדם (עצירה באמצע המשחק והכרזה על המנצח לפי הניקוד הנמוך ביותר)
+   */
+  finishEarly() {
+    const active = this.getActivePlayers();
+    if (active.length === 0) {
+      this.winner = this.getLeaderboard()[0] || null;
+    } else {
+      const sorted = [...active].sort((a, b) => a.totalScore - b.totalScore);
+      this.winner = sorted[0];
+    }
+    this.isGameOver = true;
+    this.isPaused = false;
+    return this.winner;
+  }
+
+  /**
    * ביטול הסבב האחרון
    */
   undoLastRound() {
@@ -218,7 +238,6 @@ export class YanivGame {
 
     const lastRound = this.history.pop();
 
-    // שחזור נקודות השחקנים
     for (const player of this.players) {
       if (player.scoresHistory.length >= lastRound.roundNumber) {
         player.scoresHistory.pop();
@@ -229,7 +248,6 @@ export class YanivGame {
       }
     }
 
-    // חישוב מחדש של סך הנקודות המדויק לכל שחקן מההיסטוריה
     this.recalculateTotalsFromHistory();
 
     this.currentRound = lastRound.roundNumber;
@@ -244,9 +262,6 @@ export class YanivGame {
     return true;
   }
 
-  /**
-   * חישוב מחדש של הניקוד המצטבר על בסיס היסטוריית הסבבים המלאה
-   */
   recalculateTotalsFromHistory() {
     for (const player of this.players) {
       player.totalScore = 0;
@@ -283,9 +298,6 @@ export class YanivGame {
     }
   }
 
-  /**
-   * קבלת דירוג שחקנים נוכחי (לפי ניקוד עולה - הנמוך ביותר במקום הראשון)
-   */
   getLeaderboard() {
     return [...this.players].sort((a, b) => {
       if (a.isEliminated && !b.isEliminated) return 1;
@@ -294,9 +306,6 @@ export class YanivGame {
     });
   }
 
-  /**
-   * סטטיסטיקות משחק
-   */
   getStats() {
     const stats = {
       totalRounds: this.history.length,

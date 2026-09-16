@@ -1,8 +1,10 @@
 /**
  * מודול ניהול ממשק המשתמש (UI Manager)
+ * מותאם מובייל (Mobile-First) עם תצוגת סטטיסטיקות שחקנים, מודאל עצירה והזנה מהירה.
  */
 
 import { fireConfetti } from './confetti.js';
+import { MAX_PLAYERS, MIN_PLAYERS } from './game.js';
 
 export class YanivUI {
   constructor() {
@@ -21,15 +23,12 @@ export class YanivUI {
 
     setTimeout(() => {
       toast.style.opacity = '0';
-      toast.style.transform = 'translateY(-10px)';
-      toast.style.transition = 'all 0.3s ease';
-      setTimeout(() => toast.remove(), 300);
+      toast.style.transform = 'translateY(-8px)';
+      toast.style.transition = 'all 0.25s ease';
+      setTimeout(() => toast.remove(), 250);
     }, duration);
   }
 
-  /**
-   * החלפת מסכים
-   */
   switchView(viewId) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     const target = document.getElementById(viewId);
@@ -40,35 +39,99 @@ export class YanivUI {
   }
 
   /**
-   * רינדור רשימת השחקנים במסך ההגדרות
+   * רינדור באנר משחק מושהה / פעיל במסך ההגדרות
    */
-  renderSetupPlayers(players, onRemove) {
-    const container = document.getElementById('setup-players-list');
+  renderResumeBanner(activeGame, onResume) {
+    const banner = document.getElementById('resume-game-banner');
+    if (!banner) return;
+
+    if (activeGame && !activeGame.isGameOver) {
+      banner.style.display = 'flex';
+      const infoEl = document.getElementById('resume-banner-text');
+      if (infoEl) {
+        infoEl.innerHTML = `<strong>משחק מושהה בסבב ${activeGame.currentRound}</strong> (${activeGame.players.length} שחקנים)`;
+      }
+      const resumeBtn = document.getElementById('btn-resume-banner');
+      if (resumeBtn) {
+        resumeBtn.onclick = onResume;
+      }
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
+  /**
+   * רינדור מאגר השחקנים הקבוע במסך ההגדרות (עם סטטיסטיקות קריירה)
+   */
+  renderRoster(savedPlayers, selectedIds, onToggleSelect, onDeletePlayer) {
+    const container = document.getElementById('roster-players-list');
+    const countBadge = document.getElementById('selected-players-count');
+
+    if (countBadge) {
+      countBadge.textContent = `${selectedIds.length} / ${MAX_PLAYERS} שחקנים נבחרו`;
+      if (selectedIds.length >= MIN_PLAYERS && selectedIds.length <= MAX_PLAYERS) {
+        countBadge.className = 'player-count-badge valid';
+      } else {
+        countBadge.className = 'player-count-badge invalid';
+      }
+    }
+
     if (!container) return;
 
-    if (players.length === 0) {
+    if (savedPlayers.length === 0) {
       container.innerHTML = `
-        <div style="text-align:center; padding: 18px; color: var(--text-muted); font-size: 0.95rem;">
-          עדיין לא נוספו שחקנים. הוסף לפחות 2 שחקנים כדי להתחיל.
+        <div style="text-align:center; padding: 16px; color: var(--text-muted); font-size: 0.9rem;">
+          עדיין אין שחקנים שמורים. הוסף שחקן למעלה כדי להתחיל.
         </div>`;
       return;
     }
 
-    container.innerHTML = players.map((p, idx) => `
-      <div class="player-chip">
-        <div class="player-chip-info">
-          <span class="player-chip-order">#${idx + 1}</span>
-          <div class="avatar-badge" style="border-color: ${p.color}">${p.avatar}</div>
-          <span class="player-chip-name">${this.escapeHtml(p.name)}</span>
-        </div>
-        <button type="button" class="btn-delete-chip" data-idx="${idx}" title="הסר שחקן">✕</button>
-      </div>
-    `).join('');
+    container.innerHTML = savedPlayers.map(p => {
+      const isSelected = selectedIds.includes(p.id);
+      const stats = p.stats || { gamesWon: 0, asafMade: 0, asafReceived: 0, gamesPlayed: 0 };
 
-    container.querySelectorAll('.btn-delete-chip').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const idx = parseInt(btn.getAttribute('data-idx'), 10);
-        onRemove(idx);
+      return `
+        <div class="roster-card ${isSelected ? 'is-selected' : ''}" data-player-id="${p.id}">
+          <div class="roster-card-main">
+            <div class="roster-player-info">
+              <div class="checkbox-custom">${isSelected ? '✓' : ''}</div>
+              <div class="avatar-badge" style="border-color: ${p.color}">${p.avatar}</div>
+              <span class="roster-name">${this.escapeHtml(p.name)}</span>
+            </div>
+            <button type="button" class="btn-delete-roster" data-player-id="${p.id}" title="מחק שחקן מהמאגר">✕</button>
+          </div>
+
+          <!-- Career Stats -->
+          <div class="career-stats-row">
+            <span class="stat-pill wins" title="ניצחונות במשחק">
+              <span>🏆</span> <span>ניצח:</span> <strong>${stats.gamesWon || 0}</strong>
+            </span>
+            <span class="stat-pill asaf-made" title="אספים שעשה בהצלחה">
+              <span>⚡</span> <span>עשה אסף:</span> <strong>${stats.asafMade || 0}</strong>
+            </span>
+            <span class="stat-pill asaf-got" title="אספים שחטף כשהכריז">
+              <span>💥</span> <span>קיבל אסף:</span> <strong>${stats.asafReceived || 0}</strong>
+            </span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Toggle selection click
+    container.querySelectorAll('.roster-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-delete-roster')) return;
+        const pid = card.getAttribute('data-player-id');
+        onToggleSelect(pid);
+      });
+    });
+
+    // Delete player click
+    container.querySelectorAll('.btn-delete-roster').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const pid = btn.getAttribute('data-player-id');
+        onDeletePlayer(pid);
       });
     });
   }
@@ -77,7 +140,6 @@ export class YanivUI {
    * רינדור לוח המשחק הראשי
    */
   renderActiveGame(game) {
-    // 1. אינדיקטור סבב ומחלק
     const roundBadge = document.getElementById('active-round-num');
     if (roundBadge) roundBadge.textContent = `סבב ${game.currentRound}`;
 
@@ -87,7 +149,6 @@ export class YanivUI {
       dealerName.textContent = `${dealer.avatar} ${dealer.name}`;
     }
 
-    // 2. כרטיסי שחקנים
     const grid = document.getElementById('scoreboard-grid');
     if (!grid) return;
 
@@ -103,11 +164,9 @@ export class YanivUI {
       if (pct > 75) progressColor = 'var(--accent-ruby)';
       else if (pct > 50) progressColor = 'var(--accent-gold)';
 
-      // בדיקת חצי אחרון
       const lastRound = game.history[game.history.length - 1];
       const hadHalvingLastRound = lastRound && lastRound.halvingEvents.some(h => h.playerId === player.id);
 
-      // ניקוד סבב אחרון
       let lastScoreText = '';
       if (player.scoresHistory.length > 0) {
         const lastScore = player.scoresHistory[player.scoresHistory.length - 1];
@@ -156,7 +215,6 @@ export class YanivUI {
       `;
     }).join('');
 
-    // כפתור Undo - מוצג רק אם יש היסטוריה
     const undoBtn = document.getElementById('btn-undo-round');
     if (undoBtn) {
       undoBtn.style.display = game.history.length > 0 ? 'inline-flex' : 'none';
@@ -182,13 +240,9 @@ export class YanivUI {
     modal.classList.add('open');
   }
 
-  /**
-   * רינדור תוכן מודאל הזנת הסבב
-   */
   renderModalContent(game, onSubmit) {
     const activePlayers = game.getActivePlayers();
 
-    // 1. בחירת המכריז (Caller)
     const callerContainer = document.getElementById('modal-caller-selector');
     if (callerContainer) {
       callerContainer.innerHTML = activePlayers.map(p => `
@@ -206,7 +260,6 @@ export class YanivUI {
       });
     }
 
-    // 2. שדות הזנת ניקוד לכל שחקן
     const scoreContainer = document.getElementById('modal-players-scores');
     if (scoreContainer) {
       scoreContainer.innerHTML = activePlayers.map(p => {
@@ -223,7 +276,7 @@ export class YanivUI {
                 ${isCaller ? `<span class="badge-caller">הכריז יניב 📣</span>` : ''}
               </div>
               <div class="score-input-container">
-                <label style="font-size:0.8rem; color:var(--text-muted);">ערך קלפים:</label>
+                <label style="font-size:0.78rem; color:var(--text-muted);">ערך קלפים:</label>
                 <input type="number" min="0" max="100" class="score-number-input" 
                        id="input-score-${p.id}" value="${currentVal}" />
               </div>
@@ -239,7 +292,6 @@ export class YanivUI {
         `;
       }).join('');
 
-      // אירועי לחיצה על כפתורי הקיצור של הניקוד
       scoreContainer.querySelectorAll('.chip-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           const pid = btn.getAttribute('data-player');
@@ -248,7 +300,6 @@ export class YanivUI {
           const input = document.getElementById(`input-score-${pid}`);
           if (input) input.value = val;
 
-          // עדכון סמנים פעילים
           btn.parentElement.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
 
@@ -256,7 +307,6 @@ export class YanivUI {
         });
       });
 
-      // אירועי שינוי ידני ב-input
       scoreContainer.querySelectorAll('.score-number-input').forEach(input => {
         input.addEventListener('input', (e) => {
           const pid = input.id.replace('input-score-', '');
@@ -269,7 +319,6 @@ export class YanivUI {
 
     this.updateLivePreview(game);
 
-    // כפתור אישור סבב
     const submitBtn = document.getElementById('modal-btn-confirm-round');
     if (submitBtn) {
       submitBtn.onclick = () => {
@@ -283,9 +332,6 @@ export class YanivUI {
     }
   }
 
-  /**
-   * עדכון אינדיקציה חיה של אסף בתוך המודאל
-   */
   updateLivePreview(game) {
     const previewBox = document.getElementById('modal-round-preview-box');
     if (!previewBox) return;
@@ -317,16 +363,16 @@ export class YanivUI {
       const penalty = game.settings.asafRule === 'fixed30' ? 30 : callerCards + 30;
       previewBox.innerHTML = `
         <div class="asaf-alert-banner">
-          <span style="font-size: 1.5rem;">🚨</span>
+          <span style="font-size: 1.4rem;">🚨</span>
           <div>
             <div><strong>התרעת אסף!</strong> ${this.escapeHtml(asafPlayer.name)} (${minOpponent}) עוקף/משווה את ${this.escapeHtml(caller.name)} (${callerCards})!</div>
-            <div style="font-size: 0.8rem; opacity: 0.9;">${this.escapeHtml(caller.name)} יספוג עונש אסף של +${penalty} נקודות. ${this.escapeHtml(asafPlayer.name)} יקבל 0 נקודות.</div>
+            <div style="font-size: 0.78rem; opacity: 0.9;">${this.escapeHtml(caller.name)} יספוג עונש אסף (+${penalty} נק'). ${this.escapeHtml(asafPlayer.name)} יקבל 0 נק'.</div>
           </div>
         </div>
       `;
     } else {
       previewBox.innerHTML = `
-        <div style="color: var(--accent-emerald); font-size: 0.88rem; display: flex; align-items: center; gap: 6px;">
+        <div style="color: var(--accent-emerald); font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
           <span>✅</span>
           <span>יניב מוצלח! ${this.escapeHtml(caller.name)} מקבל 0 נקודות.</span>
         </div>
@@ -340,7 +386,59 @@ export class YanivUI {
   }
 
   /**
-   * פתיחת מודאל היסטוריית סבבים ולוח ניקוד מפורט
+   * מודאל עצירת משחק (Pause Modal)
+   */
+  openPauseModal(game, { onResume, onPauseAndExit, onFinishEarly, onAbort }) {
+    const modal = document.getElementById('modal-pause-game');
+    if (!modal) return;
+
+    const roundSpan = document.getElementById('pause-current-round-text');
+    if (roundSpan) {
+      roundSpan.textContent = `משחק מושהה בסבב ${game.currentRound}`;
+    }
+
+    const btnResume = document.getElementById('btn-pause-resume');
+    if (btnResume) {
+      btnResume.onclick = () => {
+        this.closePauseModal();
+        if (onResume) onResume();
+      };
+    }
+
+    const btnSaveExit = document.getElementById('btn-pause-save-exit');
+    if (btnSaveExit) {
+      btnSaveExit.onclick = () => {
+        this.closePauseModal();
+        if (onPauseAndExit) onPauseAndExit();
+      };
+    }
+
+    const btnFinishEarly = document.getElementById('btn-pause-finish-early');
+    if (btnFinishEarly) {
+      btnFinishEarly.onclick = () => {
+        this.closePauseModal();
+        if (onFinishEarly) onFinishEarly();
+      };
+    }
+
+    const btnAbort = document.getElementById('btn-pause-abort');
+    if (btnAbort) {
+      btnAbort.onclick = () => {
+        this.closePauseModal();
+        if (onAbort) onAbort();
+      };
+    }
+
+    modal.classList.add('open');
+  }
+
+  closePauseModal() {
+    const modal = document.getElementById('modal-pause-game');
+    if (modal) modal.classList.remove('open');
+  }
+
+  /**
+   * מודאל היסטוריה
    */
   openHistoryModal(game) {
     const modal = document.getElementById('modal-history');
@@ -350,7 +448,6 @@ export class YanivUI {
     const thead = document.getElementById('history-table-head');
     if (!tbody || !thead) return;
 
-    // כותרת טבלה עם כל השחקנים
     thead.innerHTML = `
       <tr>
         <th>סבב</th>
@@ -362,7 +459,7 @@ export class YanivUI {
     if (game.history.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="${game.players.length + 2}" style="padding: 24px; color: var(--text-muted);">
+          <td colspan="${game.players.length + 2}" style="padding: 20px; color: var(--text-muted);">
             עדיין לא שוחקו סבבים.
           </td>
         </tr>
@@ -386,7 +483,6 @@ export class YanivUI {
                 return `<td style="color: var(--text-muted);">-</td>`;
               }
               const isCaller = round.callerId === p.id;
-              const isAsafWinner = round.asafPlayerId === p.id;
               const isHalved = round.halvingEvents.some(h => h.playerId === p.id);
 
               let cls = '';
@@ -414,7 +510,7 @@ export class YanivUI {
   }
 
   /**
-   * הצגת מסך ניצחון וסיום משחק
+   * מסך סיום משחק
    */
   renderGameOver(game, onRematch, onNewGame) {
     this.switchView('view-game-over');
@@ -454,14 +550,16 @@ export class YanivUI {
     if (leaderboardPodium) {
       const sorted = game.getLeaderboard();
       leaderboardPodium.innerHTML = sorted.map((p, idx) => `
-        <div class="player-chip" style="margin-bottom: 8px;">
-          <div class="player-chip-info">
-            <span class="badge-rank badge-rank-${idx + 1}">#${idx + 1}</span>
-            <div class="avatar-badge" style="border-color:${p.color}">${p.avatar}</div>
-            <span class="player-chip-name">${this.escapeHtml(p.name)}</span>
-          </div>
-          <div style="font-family: var(--font-num); font-size: 1.2rem; font-weight:800; color: ${idx === 0 ? 'var(--accent-gold)' : 'var(--text-main)'};">
-            ${p.totalScore} נק'
+        <div class="roster-card is-selected" style="margin-bottom: 8px; cursor: default;">
+          <div class="roster-card-main">
+            <div class="roster-player-info">
+              <span class="badge-rank badge-rank-${idx + 1}">#${idx + 1}</span>
+              <div class="avatar-badge" style="border-color:${p.color}">${p.avatar}</div>
+              <span class="roster-name">${this.escapeHtml(p.name)}</span>
+            </div>
+            <div style="font-family: var(--font-num); font-size: 1.15rem; font-weight:800; color: ${idx === 0 ? 'var(--accent-gold)' : 'var(--text-main)'};">
+              ${p.totalScore} נק'
+            </div>
           </div>
         </div>
       `).join('');
@@ -474,9 +572,63 @@ export class YanivUI {
     if (btnNewGame) btnNewGame.onclick = onNewGame;
   }
 
+  /**
+   * פופאפ אישור מותאם אישית ויפה (מחליף את confirm של הדפדפן)
+   * @returns {Promise<boolean>}
+   */
+  confirmDialog({ title = 'אישור פעולה', message = 'האם להמשיך?', icon = '⚠️', confirmText = 'אישור', cancelText = 'ביטול', isDanger = false } = {}) {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('modal-confirm');
+      if (!modal) {
+        resolve(window.confirm(message));
+        return;
+      }
+
+      const iconEl = document.getElementById('confirm-modal-icon');
+      const titleEl = document.getElementById('confirm-modal-title');
+      const messageEl = document.getElementById('confirm-modal-message');
+      const btnApprove = document.getElementById('confirm-btn-approve');
+      const btnCancel = document.getElementById('confirm-btn-cancel');
+
+      if (iconEl) iconEl.textContent = icon;
+      if (titleEl) titleEl.textContent = title;
+      if (messageEl) messageEl.textContent = message;
+
+      if (btnApprove) {
+        btnApprove.textContent = confirmText;
+        if (isDanger) {
+          btnApprove.className = 'btn-primary';
+          btnApprove.style.background = 'linear-gradient(135deg, #f43f5e 0%, #be123c 100%)';
+          btnApprove.style.boxShadow = '0 4px 14px rgba(244, 63, 94, 0.4)';
+        } else {
+          btnApprove.className = 'btn-primary btn-gold';
+          btnApprove.style.background = '';
+          btnApprove.style.boxShadow = '';
+        }
+      }
+
+      if (btnCancel) {
+        btnCancel.textContent = cancelText;
+      }
+
+      const cleanup = (result) => {
+        modal.classList.remove('open');
+        btnApprove.onclick = null;
+        btnCancel.onclick = null;
+        resolve(result);
+      };
+
+      btnApprove.onclick = () => cleanup(true);
+      btnCancel.onclick = () => cleanup(false);
+
+      modal.classList.add('open');
+    });
+  }
+
   escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
   }
 }
+

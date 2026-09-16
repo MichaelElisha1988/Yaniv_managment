@@ -2,9 +2,10 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>יניב - לוח תוצאות וניהול משחק קלפים</title>
-  <meta name="description" content="אפליקציה מתקדמת לניהול ורישום תוצאות משחק קלפים יניב עם חישוב אסף, חצאים, סטטיסטיקות ומעקב שחקנים." />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>יניב מנג'ר - ניהול משחק קלפים מותאם מובייל</title>
+  <meta name="description" content="אפליקציה מתקדמת לניהול משחק יניב (עד 5 שחקנים), שמירת שחקנים וסטטיסטיקות ב-LocalStorage, חישוב אסף, חצאים, ואפשרות עצירת משחק באמצע." />
+  <meta name="theme-color" content="#051910" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -18,36 +19,56 @@
         <div class="brand-icon">🃏</div>
         <div class="brand-text">
           <h1>יניב מנג'ר</h1>
-          <span>ניהול ולוח תוצאות משחק קלפים</span>
+          <span>לוח תוצאות וניהול שחקנים</span>
         </div>
       </div>
       <div class="header-actions">
-        <button type="button" class="btn-icon" id="btn-new-game-header" title="משחק חדש">➕</button>
+        <button type="button" class="btn-icon" id="btn-new-game-header" title="תפריט ראשי / משחק חדש">⚙️</button>
       </div>
     </header>
 
-    <!-- VIEW 1: Game Setup & Players -->
+    <!-- VIEW 1: Game Setup & Player Roster -->
     <main id="view-setup" class="view active">
+      <!-- Paused Game Banner (Visible when a game was paused) -->
+      <div id="resume-game-banner" class="resume-game-banner" style="display: none;">
+        <div class="resume-banner-info">
+          <span style="font-size: 1.5rem;">⏸️</span>
+          <div id="resume-banner-text">יש משחק פעיל שהושהה</div>
+        </div>
+        <button type="button" id="btn-resume-banner" class="btn-primary btn-gold" style="padding: 8px 16px;">
+          המשך משחק ▶️
+        </button>
+      </div>
+
+      <!-- Player Roster Card -->
       <div class="setup-card">
-        <div class="section-title">
-          <span>👥</span>
-          <h2>שחקנים במשחק</h2>
+        <div class="section-header-flex">
+          <div class="section-title">
+            <span>👥</span>
+            <h2>בחירת שחקנים</h2>
+          </div>
+          <span id="selected-players-count" class="player-count-badge">0 / 5 שחקנים</span>
         </div>
 
         <form id="form-add-player" class="player-input-row">
-          <input type="text" id="input-player-name" class="input-styled" placeholder="שם השחקן (למשל: דני, מיכל...)" maxlength="16" autocomplete="off" required />
-          <button type="submit" class="btn-primary">הוסף</button>
+          <input type="text" id="input-player-name" class="input-styled" placeholder="שם שחקן חדש..." maxlength="16" autocomplete="off" required />
+          <button type="submit" class="btn-primary">שמור במאגר</button>
         </form>
 
-        <div id="setup-players-list" class="players-list-setup">
-          <!-- Populated by JS -->
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">
+          לחץ על שחקן לבחירה למשחק (2 עד 5 שחקנים). הנתונים נשמרים בדפדפן:
+        </div>
+
+        <div id="roster-players-list" class="roster-players-list">
+          <!-- Populated by JS with career stats -->
         </div>
       </div>
 
+      <!-- Game Rules & Settings Card -->
       <div class="setup-card">
         <div class="section-title">
           <span>⚙️</span>
-          <h2>הגדרות וחוקי משחק</h2>
+          <h2>חוקי המשחק</h2>
         </div>
 
         <div class="settings-grid">
@@ -66,16 +87,16 @@
             <label class="setting-label">עונש אסף (למכריז):</label>
             <div class="pill-selector">
               <button type="button" class="pill-btn active" data-setting="asafRule" data-value="cardsPlus30">קלפים + 30</button>
-              <button type="button" class="pill-btn" data-setting="asafRule" data-value="fixed30">30 בלבד</button>
+              <button type="button" class="pill-btn" data-setting="asafRule" data-value="fixed30">30 קבוע</button>
             </div>
           </div>
         </div>
 
         <!-- Halving Rule Switch -->
-        <div class="toggle-row" style="margin-top: 16px; border-top: 1px solid var(--border-subtle); padding-top: 14px;">
+        <div class="toggle-row" style="margin-top: 14px; border-top: 1px solid var(--border-subtle); padding-top: 12px;">
           <div>
-            <div style="font-weight: 700; color: var(--text-main);">חוק החצאים (50 / 100) ✂️</div>
-            <div style="font-size: 0.8rem; color: var(--text-muted);">הגעה ל-50 מורידה ל-25; הגעה ל-100 מורידה ל-50</div>
+            <div style="font-weight: 700; color: var(--text-main); font-size: 0.95rem;">חוק החצאים (50 / 100) ✂️</div>
+            <div style="font-size: 0.78rem; color: var(--text-muted);">קיצוץ ניקוד בהגעה מדויקת ל-50 או ל-100</div>
           </div>
           <label class="toggle-switch">
             <input type="checkbox" id="toggle-halving" checked />
@@ -83,8 +104,17 @@
           </label>
         </div>
 
-        <div style="margin-top: 24px;">
-          <button type="button" id="btn-start-game" class="btn-primary btn-gold" style="width: 100%; font-size: 1.15rem; padding: 14px;">
+        <!-- Halving 50 target selector (25 or 0) -->
+        <div id="halving-options-box" style="margin-top: 10px; background: var(--bg-glass-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 10px 12px;">
+          <label class="setting-label">בהגעה מדויקת ל-50 הניקוד:</label>
+          <div class="pill-selector">
+            <button type="button" class="pill-btn active" data-setting="halving50To" data-value="25">יורד ל-25 (חצי)</button>
+            <button type="button" class="pill-btn" data-setting="halving50To" data-value="0">מתאפס ל-0 🎯</button>
+          </div>
+        </div>
+
+        <div style="margin-top: 20px;">
+          <button type="button" id="btn-start-game" class="btn-primary btn-gold" style="width: 100%; font-size: 1.1rem; padding: 14px;">
             התחל משחק 🚀
           </button>
         </div>
@@ -100,12 +130,14 @@
         </div>
         <div class="dealer-tag" id="active-dealer-container">
           <span class="dealer-token">🪙</span>
-          <span>מחלק:</span>
           <strong id="active-dealer-name">שחקן</strong>
         </div>
-        <div>
-          <button type="button" id="btn-undo-round" class="btn-secondary" style="display:none; padding: 6px 12px; font-size: 0.82rem;" title="בטל סבב אחרון">
-            ↩️ בטל סבב
+        <div class="status-bar-actions">
+          <button type="button" id="btn-undo-round" class="btn-secondary" style="display:none; padding: 5px 9px; font-size: 0.8rem;" title="בטל סבב אחרון">
+            ↩️ בטל
+          </button>
+          <button type="button" id="btn-pause-game" class="btn-secondary" style="padding: 5px 9px; font-size: 0.8rem; border-color: var(--accent-gold); color: var(--text-gold);" title="עצור / השהה משחק">
+            ⏸️ עצור
           </button>
         </div>
       </div>
@@ -139,23 +171,21 @@
           <span id="winner-name" class="winner-name">דני</span>
         </div>
 
-        <!-- Summary Stats -->
         <div id="victory-stats-grid" class="stats-summary-grid">
           <!-- Rendered by JS -->
         </div>
 
-        <!-- Final Rankings Podium -->
-        <div style="text-align: right; margin-bottom: 20px;">
-          <h3 style="color: var(--accent-gold); font-size: 1.1rem; margin-bottom: 10px;">דירוג סופי:</h3>
+        <div style="text-align: right; margin-bottom: 16px;">
+          <h3 style="color: var(--accent-gold); font-size: 1rem; margin-bottom: 8px;">דירוג סופי:</h3>
           <div id="victory-podium-list"></div>
         </div>
 
-        <div style="display: flex; gap: 10px; justify-content: center;">
-          <button type="button" id="btn-rematch" class="btn-primary btn-gold" style="flex: 1; padding: 14px;">
+        <div style="display: flex; gap: 8px; justify-content: center;">
+          <button type="button" id="btn-rematch" class="btn-primary btn-gold" style="flex: 1; padding: 12px;">
             משחק חוזר 🔁
           </button>
-          <button type="button" id="btn-new-game-over" class="btn-secondary" style="flex: 1; padding: 14px;">
-            הגדרת משחק חדש ⚙️
+          <button type="button" id="btn-new-game-over" class="btn-secondary" style="flex: 1; padding: 12px;">
+            תפריט ראשי ⚙️
           </button>
         </div>
       </div>
@@ -170,14 +200,14 @@
         </div>
 
         <div>
-          <label style="font-weight: 700; color: var(--accent-gold); font-size: 0.95rem;">מי הכריז יניב?</label>
+          <label style="font-weight: 700; color: var(--accent-gold); font-size: 0.9rem;">מי הכריז יניב?</label>
           <div id="modal-caller-selector" class="caller-selection-grid">
             <!-- Rendered by JS -->
           </div>
         </div>
 
         <div>
-          <label style="font-weight: 700; color: var(--text-main); font-size: 0.95rem; margin-top: 8px; display: block;">
+          <label style="font-weight: 700; color: var(--text-main); font-size: 0.9rem; margin-top: 6px; display: block;">
             ערך הקלפים ביד לכל שחקן:
           </label>
           <div id="modal-players-scores" class="score-entry-list">
@@ -185,11 +215,10 @@
           </div>
         </div>
 
-        <!-- Live Asaf / Halving Alert Preview -->
         <div id="modal-round-preview-box"></div>
 
-        <div style="margin-top: 10px;">
-          <button type="button" id="modal-btn-confirm-round" class="btn-primary btn-gold" style="width: 100%; font-size: 1.1rem; padding: 14px;">
+        <div style="margin-top: 8px;">
+          <button type="button" id="modal-btn-confirm-round" class="btn-primary btn-gold" style="width: 100%; font-size: 1.05rem; padding: 12px;">
             שמור סבב וחשב תוצאות ✨
           </button>
         </div>
@@ -198,7 +227,7 @@
 
     <!-- MODAL 2: Full History Table -->
     <div id="modal-history" class="modal-backdrop">
-      <div class="modal-card" style="max-width: 650px;">
+      <div class="modal-card" style="max-width: 620px;">
         <div class="modal-header">
           <h3><span>📋</span> לוח ניקוד והיסטוריית סבבים</h3>
           <button type="button" id="modal-btn-close-history" class="btn-icon" style="width: 32px; height: 32px;">✕</button>
@@ -215,9 +244,74 @@
           </table>
         </div>
 
-        <div style="text-align: center; margin-top: 10px;">
+        <div style="text-align: center; margin-top: 8px;">
           <button type="button" onclick="document.getElementById('modal-history').classList.remove('open')" class="btn-secondary" style="width: 100%;">
             סגור
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 3: Pause / Stop Mid-Game (עצירה באמצע המשחק) -->
+    <div id="modal-pause-game" class="modal-backdrop">
+      <div class="modal-card" style="max-width: 440px;">
+        <div class="modal-header">
+          <h3><span>⏸️</span> עצירת משחק באמצע</h3>
+          <button type="button" onclick="document.getElementById('modal-pause-game').classList.remove('open')" class="btn-icon" style="width: 32px; height: 32px;">✕</button>
+        </div>
+
+        <div id="pause-current-round-text" style="color: var(--accent-gold); font-weight: 700; font-size: 0.95rem;">
+          משחק מושהה
+        </div>
+
+        <div class="pause-options-list">
+          <button type="button" id="btn-pause-resume" class="pause-btn-option">
+            <span class="icon">▶️</span>
+            <div>
+              <div class="pause-btn-title">המשך במשחק כעת</div>
+              <div class="pause-btn-desc">חזרה מיידית לשולחן המשחק</div>
+            </div>
+          </button>
+
+          <button type="button" id="btn-pause-save-exit" class="pause-btn-option">
+            <span class="icon">💾</span>
+            <div>
+              <div class="pause-btn-title">השהה ושמור לתפריט</div>
+              <div class="pause-btn-desc">שמירת מצב המשחק במלואו, תוכלו להמשיך מאוחר יותר</div>
+            </div>
+          </button>
+
+          <button type="button" id="btn-pause-finish-early" class="pause-btn-option">
+            <span class="icon">🏁</span>
+            <div>
+              <div class="pause-btn-title">סיים משחק עכשיו</div>
+              <div class="pause-btn-desc">הכרזה על המוביל הנוכחי (בעל הניקוד הנמוך ביותר) כמנצח ועדכון סטטיסטיקות</div>
+            </div>
+          </button>
+
+          <button type="button" id="btn-pause-abort" class="pause-btn-option" style="border-color: rgba(244,63,94,0.3);">
+            <span class="icon">🗑️</span>
+            <div>
+              <div class="pause-btn-title" style="color: var(--accent-ruby);">בטל משחק לחלוטין</div>
+              <div class="pause-btn-desc">מחיקת המשחק הנוכחי וחזרה לתפריט</div>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 4: Custom Confirm Dialog (פופאפ אישור יוקרתי) -->
+    <div id="modal-confirm" class="modal-backdrop">
+      <div class="modal-card confirm-modal-card">
+        <div class="confirm-icon-wrapper" id="confirm-modal-icon">⚠️</div>
+        <h3 id="confirm-modal-title" class="confirm-title">אישור פעולה</h3>
+        <p id="confirm-modal-message" class="confirm-message">האם לבצע פעולה זו?</p>
+        <div class="confirm-actions">
+          <button type="button" id="confirm-btn-cancel" class="btn-secondary" style="flex: 1; padding: 12px;">
+            ביטול
+          </button>
+          <button type="button" id="confirm-btn-approve" class="btn-primary btn-gold" style="flex: 1; padding: 12px;">
+            אישור
           </button>
         </div>
       </div>
